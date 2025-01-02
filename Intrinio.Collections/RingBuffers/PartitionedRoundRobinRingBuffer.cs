@@ -1,4 +1,4 @@
-namespace Intrinio.Collections.Queues;
+namespace Intrinio.Collections.RingBuffers;
 
 using System;
 using System.Linq;
