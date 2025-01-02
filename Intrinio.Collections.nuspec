@@ -7,7 +7,8 @@
 		<authors>Intrinio</authors>
 		<owners>Intrinio</owners>
 		<requireLicenseAcceptance>true</requireLicenseAcceptance>
-		<licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>
+<!--		<licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>-->
+		<license type="file">LICENSE</license>
 		<projectUrl>https://github.com/intrinio/intrinio-collections</projectUrl>
 		<description>Intrinio library for high performance, special-use collections.</description>
 		<releaseNotes>Version 1.0.0 release.</releaseNotes>
@@ -26,5 +27,6 @@
 		<file src="Intrinio.Collections/bin/Release/net8.0/Intrinio.Collections.deps.json" target="lib/net8.0" />
 		<file src="intrinio.png" target="intrinio.png" />
 		<file src="README.md" target="README.md" />
+		<file src="LICENSE" target="LICENSE" />
 	</files>
 </package>
