@@ -130,4 +130,26 @@ public class PartitionedRoundRobinRingBuffer : IPartitionedRingBuffer
             tryCount++;
         return tryCount != _concurrency;
     }
+
+    /// <summary>
+    /// The count of blocks currently in the ring buffer at the specified index.
+    /// </summary>
+    /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ulong GetCount(int threadIndex)
+    {
+        return _queues[threadIndex].Count;
+    }
+    
+    /// <summary>
+    /// The quantity of dropped blocks due to being full at the specified index.
+    /// </summary>
+    /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ulong GetDropCount(int threadIndex)
+    {
+        return _queues[threadIndex].DropCount;
+    }
 }
