@@ -61,4 +61,20 @@ public interface IPartitionedRingBuffer
     /// Whether the ring buffer is currently full.
     /// </summary>
     bool IsFull { get; }
+
+    /// <summary>
+    /// The count of blocks currently in the ring buffer at the specified index.
+    /// </summary>
+    /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ulong GetCount(int threadIndex);
+
+    /// <summary>
+    /// The quantity of dropped blocks due to being full at the specified index.
+    /// </summary>
+    /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
+    /// <returns></returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ulong GetDropCount(int threadIndex);
 }
