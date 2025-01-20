@@ -17,14 +17,14 @@ public interface IPartitionedRingBuffer
     /// </summary>
     /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
     /// <param name="blockToWrite">The byte block to copy from.</param>
-    /// <returns></returns>
-    bool TryEnqueue(int threadIndex, in ReadOnlySpan<byte> blockToWrite);
+    /// <returns>Whether the block was successfully enqueued or not.</returns>
+    bool TryEnqueue(uint threadIndex, in ReadOnlySpan<byte> blockToWrite);
     
     /// <summary>
     /// Thread-safe try dequeue.  Parameter "blockBuffer" MUST be of length BlockSize!
     /// </summary>
     /// <param name="blockBuffer">The buffer to copy the byte block to.</param>
-    /// <returns></returns>
+    /// <returns>Whether a block was successfully dequeued or not.</returns>
     bool TryDequeue(in Span<byte> blockBuffer);
     
     /// <summary>

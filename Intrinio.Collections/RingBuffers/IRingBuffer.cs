@@ -16,14 +16,14 @@ public interface IRingBuffer
     /// Try to enqueue a byte block via copy from the provided buffer.
     /// </summary>
     /// <param name="blockToWrite">The byte block to copy from.</param>
-    /// <returns></returns>
+    /// <returns>Whether the block was successfully enqueued or not.</returns>
     bool TryEnqueue(in ReadOnlySpan<byte> blockToWrite);
     
     /// <summary>
     /// Try to dequeue a byte block via copy to the provided buffer.
     /// </summary>
     /// <param name="blockBuffer">The buffer to copy the byte block to.</param>
-    /// <returns></returns>
+    /// <returns>Whether a block was successfully dequeued or not.</returns>
     bool TryDequeue(in Span<byte> blockBuffer);
     
     /// <summary>

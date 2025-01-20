@@ -72,6 +72,7 @@ public class DropOldestRingBuffer : IRingBuffer
     /// Full behavior: the oldest block in the ring buffer will be dropped. 
     /// </summary>
     /// <param name="blockToWrite">The byte block to copy from.</param>
+    /// <returns>Whether the block was successfully enqueued or not.</returns>
     public bool TryEnqueue(in ReadOnlySpan<byte> blockToWrite)
     {
         lock (_writeLock)
@@ -102,6 +103,7 @@ public class DropOldestRingBuffer : IRingBuffer
     /// Thread-safe try dequeue.  Parameter "blockBuffer" MUST be of length BlockSize!
     /// </summary>
     /// <param name="blockBuffer">The buffer to copy the byte block to.</param>
+    /// <returns>Whether a block was successfully dequeued or not.</returns>
     public bool TryDequeue(in Span<byte> blockBuffer)
     {
         lock (_readLock)
