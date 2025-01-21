@@ -30,13 +30,13 @@ public class DynamicBlockSingleProducerRingBuffer: SingleProducerRingBuffer, IDy
     /// Not thread-safe try enqueue.  Parameter "blockToWrite" MUST be of length BlockSize! This is not safe for calling concurrently, and intended for use with a single producer.
     /// Full behavior: the block trying to be enqueued will be dropped. 
     /// </summary>
-    /// <param name="fullBlockToWrite">The byte block to copy from.</param>
-    /// <param name="usedBlock">Full block, windowed for the writable area and trimmed down to the used size.</param>
+    /// <param name="fullBlockToWrite">The byte block to copy from. MUST be of length BlockSize!</param>
+    /// <param name="usedLength">The length of used space in fullBlockToWrite, not including the section for used size tracking.  Use GetUsableArea to aid in this, and then use the length of that span after your further manipulation here.</param>
     /// <returns>Whether the block was successfully enqueued or not.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryEnqueue(Span<byte> fullBlockToWrite, ReadOnlySpan<byte> usedBlock)
+    public bool TryEnqueue(Span<byte> fullBlockToWrite, uint usedLength)
     {
-        BinaryPrimitives.WriteUInt32BigEndian(fullBlockToWrite, Convert.ToUInt32(usedBlock.Length));
+        BinaryPrimitives.WriteUInt32BigEndian(fullBlockToWrite, usedLength);
         return base.TryEnqueue(fullBlockToWrite);
     }
 
@@ -55,7 +55,7 @@ public class DynamicBlockSingleProducerRingBuffer: SingleProducerRingBuffer, IDy
     }
     
     /// <summary>
-    /// Slice the full block to the writable area (removing the internally tracked used size section).
+    /// Slice the full block to the usable area (removing the internally tracked used size section).
     /// </summary>
     /// <param name="fullBlockToTrim">The full sized block.</param>
     /// <returns>The fullBlockToTrim windowed without the internally tracked used size section.</returns>

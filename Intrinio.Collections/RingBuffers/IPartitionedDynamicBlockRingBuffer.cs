@@ -14,10 +14,10 @@ public interface IPartitionedDynamicBlockRingBuffer : IPartitionedRingBuffer
     /// Full behavior: the block trying to be enqueued will be dropped. 
     /// </summary>
     /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
-    /// <param name="fullBlockToWrite">The byte block to copy from.</param>
-    /// <param name="usedBlock">Full block, windowed for the writable area and trimmed down to the used size.</param>
+    /// <param name="fullBlockToWrite">The full length byte block to copy from.</param>
+    /// <param name="usedLength">The length of used space in fullBlockToWrite, not including the section for used size tracking.  Use GetUsableArea to aid in this, and then use the length of that span after your further manipulation here.</param>
     /// <returns>Whether the block was successfully enqueued or not.</returns>
-    bool TryEnqueue(uint threadIndex, Span<byte> fullBlockToWrite, ReadOnlySpan<byte> usedBlock);
+    bool TryEnqueue(uint threadIndex, Span<byte> fullBlockToWrite, uint usedLength);
 
     /// <summary>
     /// Try to dequeue a byte block via copy to the provided buffer.
