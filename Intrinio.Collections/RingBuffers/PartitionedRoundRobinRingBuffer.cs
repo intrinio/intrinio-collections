@@ -113,7 +113,7 @@ public class PartitionedRoundRobinRingBuffer : IPartitionedRingBuffer
     /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
     /// <param name="blockToWrite">The byte block to copy from.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryEnqueue(uint threadIndex, in ReadOnlySpan<byte> blockToWrite)
+    public bool TryEnqueue(uint threadIndex, ReadOnlySpan<byte> blockToWrite)
     {
         return _queues[threadIndex].TryEnqueue(blockToWrite);
     }
@@ -123,7 +123,7 @@ public class PartitionedRoundRobinRingBuffer : IPartitionedRingBuffer
     /// </summary>
     /// <param name="blockBuffer">The buffer to copy the byte block to.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryDequeue(in Span<byte> blockBuffer)
+    public bool TryDequeue(Span<byte> blockBuffer)
     {
         ulong tryCount = 0UL;
         while (tryCount < _concurrency && !_queues[Interlocked.Increment(ref _readIndex) % _concurrency].TryDequeue(blockBuffer))

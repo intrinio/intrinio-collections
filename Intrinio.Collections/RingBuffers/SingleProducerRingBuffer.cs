@@ -70,7 +70,7 @@ public class SingleProducerRingBuffer : IRingBuffer
     /// Full behavior: the block trying to be enqueued will be dropped. 
     /// </summary>
     /// <param name="blockToWrite">The byte block to copy from.</param>
-    public bool TryEnqueue(in ReadOnlySpan<byte> blockToWrite)
+    public bool TryEnqueue(ReadOnlySpan<byte> blockToWrite)
     {
         if (IsFullNoLock())
         {
@@ -91,7 +91,7 @@ public class SingleProducerRingBuffer : IRingBuffer
     /// Thread-safe try dequeue.  Parameter "blockBuffer" MUST be of length BlockSize!
     /// </summary>
     /// <param name="blockBuffer">The buffer to copy the byte block to.</param>
-    public bool TryDequeue(in Span<byte> blockBuffer)
+    public bool TryDequeue(Span<byte> blockBuffer)
     {
         lock (_readLock)
         {

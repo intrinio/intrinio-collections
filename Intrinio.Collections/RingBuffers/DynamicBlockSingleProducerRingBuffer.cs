@@ -34,7 +34,7 @@ public class DynamicBlockSingleProducerRingBuffer: SingleProducerRingBuffer, IDy
     /// <param name="usedBlock">Full block, windowed for the writable area and trimmed down to the used size.</param>
     /// <returns>Whether the block was successfully enqueued or not.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryEnqueue(in Span<byte> fullBlockToWrite, in Span<byte> usedBlock)
+    public bool TryEnqueue(Span<byte> fullBlockToWrite, ReadOnlySpan<byte> usedBlock)
     {
         BinaryPrimitives.WriteUInt32BigEndian(fullBlockToWrite, Convert.ToUInt32(usedBlock.Length));
         return base.TryEnqueue(fullBlockToWrite);
@@ -44,14 +44,13 @@ public class DynamicBlockSingleProducerRingBuffer: SingleProducerRingBuffer, IDy
     /// Try to dequeue a byte block via copy to the provided buffer.
     /// </summary>
     /// <param name="fullBlockBuffer">The full sized buffer to copy the byte block to. Must be of BlockSize.</param>
-    /// <param name="trimmedBlock">The buffer, trimmed down to the used size.</param>
+    /// <param name="usedSize">The used size of the full block.</param>
     /// <returns>Whether the dequeue successfully retrieved a block or not.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryDequeue(in Span<byte> fullBlockBuffer, out ReadOnlySpan<byte> trimmedBlock)
+    public bool TryDequeue(Span<byte> fullBlockBuffer, out uint usedSize)
     {
         bool result = base.TryDequeue(fullBlockBuffer);
-        uint size = BinaryPrimitives.ReadUInt32BigEndian(fullBlockBuffer);
-        trimmedBlock = fullBlockBuffer.Slice(sizeof(UInt32), Convert.ToInt32(size));
+        usedSize = BinaryPrimitives.ReadUInt32BigEndian(fullBlockBuffer);
         return result;
     }
     
@@ -59,10 +58,10 @@ public class DynamicBlockSingleProducerRingBuffer: SingleProducerRingBuffer, IDy
     /// Slice the full block to the writable area (removing the internally tracked used size section).
     /// </summary>
     /// <param name="fullBlockToTrim">The full sized block.</param>
-    /// <param name="trimmedBlock">The full sized block, trimmed down to the writable area (internally tracked used size section removed).</param>
+    /// <returns>The fullBlockToTrim windowed without the internally tracked used size section.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void GetWritableArea(in ReadOnlySpan<byte> fullBlockToTrim, out ReadOnlySpan<byte> trimmedBlock)
+    public static Span<byte> GetUsableArea(Span<byte> fullBlockToTrim)
     {
-        trimmedBlock = fullBlockToTrim.Slice(sizeof(UInt32));
+        return fullBlockToTrim.Slice(sizeof(UInt32));
     }
 }
