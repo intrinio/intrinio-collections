@@ -67,7 +67,6 @@ public interface IPartitionedRingBuffer
     /// </summary>
     /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
     /// <returns></returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ulong GetCount(int threadIndex);
 
     /// <summary>
@@ -75,6 +74,5 @@ public interface IPartitionedRingBuffer
     /// </summary>
     /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
     /// <returns></returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ulong GetDropCount(int threadIndex);
 }
