@@ -3,9 +3,7 @@ namespace Intrinio.Collections.RingBuffers;
 using System;
 using System.Linq;
 using System.Threading;
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
-using Intrinio.Collections.RingBuffers;
 
 /// <summary>
 /// A fixed size group of <see cref="Intrinio.Collections.RingBuffers.SingleProducerRingBuffer"/> partitioned by an index, so that multiple writers may have their own write channel without being locked, while consumption is channel agnostic, thread-safe, and performed in a round-robin style.

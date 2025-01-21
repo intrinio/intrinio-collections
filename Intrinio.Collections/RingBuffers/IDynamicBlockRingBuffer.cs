@@ -3,7 +3,7 @@ namespace Intrinio.Collections.RingBuffers;
 using System;
 
 /// <summary>
-/// 
+/// A fixed-size byte-block circular queue with support for tracking the used size of each byte-block.
 /// </summary>
 public interface IDynamicBlockRingBuffer
 {

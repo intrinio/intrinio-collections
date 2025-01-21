@@ -1,17 +1,12 @@
-using System.Buffers.Binary;
-using System.Runtime.CompilerServices;
-
 namespace Intrinio.Collections.RingBuffers;
 
 using System;
-using System.Linq;
 using System.Threading;
-using System.Collections.Concurrent;
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
-using Intrinio.Collections.RingBuffers;
 
 /// <summary>
-/// 
+/// A read thread-safe, write not thread-safe implementation of the IDynamicBlockRingBuffer (single producer and multiple consumer), with support for tracking the used size of each byte-block.  Full behavior: the block trying to be enqueued will be dropped. 
 /// </summary>
 public class DynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
 {
