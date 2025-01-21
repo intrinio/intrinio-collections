@@ -1,11 +1,6 @@
 namespace Intrinio.Collections.RingBuffers;
 
 using System;
-using System.Linq;
-using System.Threading;
-using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
-using Intrinio.Collections.RingBuffers;
 
 /// <summary>
 /// A fixed-size byte-block circular queue.
@@ -16,15 +11,15 @@ public interface IRingBuffer
     /// Try to enqueue a byte block via copy from the provided buffer.
     /// </summary>
     /// <param name="blockToWrite">The byte block to copy from.</param>
-    /// <returns></returns>
-    bool TryEnqueue(in ReadOnlySpan<byte> blockToWrite);
+    /// <returns>Whether the block was successfully enqueued or not.</returns>
+    bool TryEnqueue(ReadOnlySpan<byte> blockToWrite);
     
     /// <summary>
     /// Try to dequeue a byte block via copy to the provided buffer.
     /// </summary>
     /// <param name="blockBuffer">The buffer to copy the byte block to.</param>
-    /// <returns></returns>
-    bool TryDequeue(in Span<byte> blockBuffer);
+    /// <returns>Whether a block was successfully dequeued or not.</returns>
+    bool TryDequeue(Span<byte> blockBuffer);
     
     /// <summary>
     /// The count of blocks currently in the ring buffer.
