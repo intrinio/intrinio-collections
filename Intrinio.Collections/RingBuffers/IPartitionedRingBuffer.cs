@@ -8,7 +8,7 @@ using System;
 public interface IPartitionedRingBuffer
 {
     /// <summary>
-    /// A try enqueue where for each value of threadIndex, only one thread will be calling concurrently at a time.  Parameter "blockToWrite" MUST be of length BlockSize!
+    /// A try enqueue where for each value of threadIndex, only one thread will be calling concurrently at a time.
     /// </summary>
     /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
     /// <param name="blockToWrite">The byte block to copy from.</param>
@@ -16,7 +16,7 @@ public interface IPartitionedRingBuffer
     bool TryEnqueue(uint threadIndex, ReadOnlySpan<byte> blockToWrite);
     
     /// <summary>
-    /// Thread-safe try dequeue.  Parameter "blockBuffer" MUST be of length BlockSize!
+    /// Thread-safe try dequeue.  Parameter "blockBuffer" MUST be of length BlockSize or greater!
     /// </summary>
     /// <param name="blockBuffer">The buffer to copy the byte block to.</param>
     /// <returns>Whether a block was successfully dequeued or not.</returns>

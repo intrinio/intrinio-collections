@@ -105,7 +105,7 @@ public class PartitionedRoundRobinRingBuffer : IPartitionedRingBuffer
     }
 
     /// <summary>
-    /// A try enqueue where for each value of threadIndex, only one thread will be calling concurrently at a time.  Parameter "blockToWrite" MUST be of length BlockSize!
+    /// A try enqueue where for each value of threadIndex, only one thread will be calling concurrently at a time.
     /// Full behavior: the block trying to be enqueued will be dropped. 
     /// </summary>
     /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
@@ -117,7 +117,7 @@ public class PartitionedRoundRobinRingBuffer : IPartitionedRingBuffer
     }
 
     /// <summary>
-    /// Thread-safe try dequeue.  Parameter "blockBuffer" MUST be of length BlockSize! Uses a round-robin method to try dequeuing from channels.
+    /// Thread-safe try dequeue.  Parameter "blockBuffer" MUST be of length BlockSize or greater! Uses a round-robin method to try dequeuing from channels.
     /// </summary>
     /// <param name="blockBuffer">The buffer to copy the byte block to.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -17,9 +17,9 @@ public interface IRingBuffer
     /// <summary>
     /// Try to dequeue a byte block via copy to the provided buffer.
     /// </summary>
-    /// <param name="blockBuffer">The buffer to copy the byte block to.</param>
+    /// <param name="fullBlockBuffer">The buffer to copy the byte block to.</param>
     /// <returns>Whether a block was successfully dequeued or not.</returns>
-    bool TryDequeue(Span<byte> blockBuffer);
+    bool TryDequeue(Span<byte> fullBlockBuffer);
     
     /// <summary>
     /// The count of blocks currently in the ring buffer.
