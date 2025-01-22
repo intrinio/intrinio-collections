@@ -17,9 +17,6 @@ public class PartitionedRoundRobinDynamicBlockRingBuffer : IPartitionedDynamicBl
     private readonly uint _blockSize;
     private readonly uint _eachBlockCapacity;
     private readonly ulong _totalBlockCapacity;
-    private readonly uint _usableBlockSize;
-    
-    public uint UsableBlockSize { get { return _usableBlockSize; } }
     
     /// <summary>
     /// The fixed size of each byte block.
@@ -103,27 +100,26 @@ public class PartitionedRoundRobinDynamicBlockRingBuffer : IPartitionedDynamicBl
         _eachBlockCapacity = eachQueueBlockCapacity;
         _totalBlockCapacity = Convert.ToUInt64(eachQueueBlockCapacity) * this._concurrency;
         this._concurrency = concurrency;
-        _usableBlockSize = _blockSize - sizeof(UInt32);
         _queues = new DynamicBlockSingleProducerRingBuffer[concurrency];
         for (int i = 0; i < concurrency; i++)
             _queues[i] = new DynamicBlockSingleProducerRingBuffer(blockSize, eachQueueBlockCapacity);
     }
 
     /// <summary>
-    /// Not thread-safe (for a single threadIndex) try enqueue.  Parameter "blockToWrite" MUST be of length BlockSize! This is not safe for calling concurrently on the same threadIndex, and intended for use with a single producer per index.
+    /// Not thread-safe (for a single threadIndex) try enqueue.  This is not safe for calling concurrently on the same threadIndex, and intended for use with a single producer per index.
     /// Full behavior: the block trying to be enqueued will be dropped. 
     /// </summary>
     /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
-    /// <param name="blockToWrite">The full length byte block to copy from.</param>
+    /// <param name="blockToWrite">The byte block to copy from.</param>
     /// <returns>Whether the block was successfully enqueued or not.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryEnqueue(uint threadIndex, Span<byte> blockToWrite)
+    public bool TryEnqueue(uint threadIndex, ReadOnlySpan<byte> blockToWrite)
     {
         return _queues[threadIndex].TryEnqueue(blockToWrite);
     }
 
     /// <summary>
-    /// Thread-safe try dequeue.  Parameter "blockBuffer" MUST be of length BlockSize! Uses a round-robin method to try dequeuing from channels.
+    /// Thread-safe try dequeue.  Parameter "blockBuffer" MUST be of length BlockSize or greater! Uses a round-robin method to try dequeuing from channels.
     /// </summary>
     /// <param name="blockBuffer">The buffer to copy the byte block to.</param>
     /// <returns>Whether a block was successfully dequeued or not.</returns>
@@ -137,31 +133,19 @@ public class PartitionedRoundRobinDynamicBlockRingBuffer : IPartitionedDynamicBl
     }
 
     /// <summary>
-    /// Not thread-safe (for a single threadIndex) try enqueue.  Parameter "blockToWrite" MUST be of length BlockSize! This is not safe for calling concurrently on the same threadIndex, and intended for use with a single producer per index.
-    /// Full behavior: the block trying to be enqueued will be dropped. 
-    /// </summary>
-    /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
-    /// <param name="fullBlockToWrite">The full length byte block to copy from. MUST be of length BlockSize!</param>
-    /// <param name="usedLength">The length of used space in fullBlockToWrite, not including the section for used size tracking.  Use GetUsableArea to aid in this, and then use the length of that span after your further manipulation here.</param>
-    /// <returns>Whether the block was successfully enqueued or not.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryEnqueue(uint threadIndex, Span<byte> fullBlockToWrite, uint usedLength)
-    {
-        return _queues[threadIndex].TryEnqueue(fullBlockToWrite, usedLength);
-    }
-
-    /// <summary>
     /// Try to dequeue a byte block via copy to the provided buffer.
     /// </summary>
     /// <param name="fullBlockBuffer">The full sized buffer to copy the byte block to.</param>
-    /// <param name="usedSize">The used size of the full block after the used size tracking section.  This is the size set during enqueue.</param>
+    /// <param name="trimmedBuffer">The fullBlockBuffer, trimmed down to the original size it enqueued as.</param>
     /// <returns>Whether the dequeue successfully retrieved a block or not.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryDequeue(Span<byte> fullBlockBuffer, out uint usedSize)
+    public bool TryDequeue(Span<byte> fullBlockBuffer, out Span<byte> trimmedBuffer)
     {
-        bool result = TryDequeue(fullBlockBuffer);
-        usedSize = BinaryPrimitives.ReadUInt32BigEndian(fullBlockBuffer);
-        return result;
+        ulong tryCount = 0UL;
+        trimmedBuffer = fullBlockBuffer;
+        while (tryCount < _concurrency && !_queues[Interlocked.Increment(ref _readIndex) % _concurrency].TryDequeue(fullBlockBuffer, out trimmedBuffer))
+            tryCount++;
+        return tryCount != _concurrency;
     }
 
     /// <summary>
@@ -184,16 +168,5 @@ public class PartitionedRoundRobinDynamicBlockRingBuffer : IPartitionedDynamicBl
     public ulong GetDropCount(int threadIndex)
     {
         return _queues[threadIndex].DropCount;
-    }
-    
-    /// <summary>
-    /// Slice the full block to the writable area (removing the internally tracked used size section).
-    /// </summary>
-    /// <param name="fullBlockToTrim">The full sized block.</param>
-    /// <returns>The fullBlockToTrim windowed without the internally tracked used size section.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Span<byte> GetUsableArea(Span<byte> fullBlockToTrim)
-    {
-        return DynamicBlockSingleProducerRingBuffer.GetUsableArea(fullBlockToTrim);
     }
 }

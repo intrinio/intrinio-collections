@@ -65,7 +65,7 @@ public class RingBuffer : IRingBuffer
     #endregion //Constructors
 
     /// <summary>
-    /// Thread-safe try enqueue.  Parameter "blockToWrite" MUST be of length BlockSize!
+    /// Thread-safe try enqueue.
     /// Full behavior: the block trying to be enqueued will be dropped. 
     /// </summary>
     /// <param name="blockToWrite">The byte block to copy from.</param>
@@ -86,7 +86,7 @@ public class RingBuffer : IRingBuffer
             }
             
             Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextWriteIndex * BlockSize), Convert.ToInt32(BlockSize));
-            blockToWrite.CopyTo(target);
+            blockToWrite.Slice(0, Math.Min(blockToWrite.Length, Convert.ToInt32(_blockSize))).CopyTo(target);
             
             _blockNextWriteIndex = (++_blockNextWriteIndex) % BlockCapacity;
             Interlocked.Increment(ref _count);
@@ -98,8 +98,8 @@ public class RingBuffer : IRingBuffer
     /// <summary>
     /// Thread-safe try dequeue.  Parameter "blockBuffer" MUST be of length BlockSize!
     /// </summary>
-    /// <param name="blockBuffer">The buffer to copy the byte block to.</param>
-    public bool TryDequeue(Span<byte> blockBuffer)
+    /// <param name="fullBlockBuffer">The buffer to copy the byte block to.</param>
+    public bool TryDequeue(Span<byte> fullBlockBuffer)
     {
         lock (_readLock)
         {
@@ -107,7 +107,7 @@ public class RingBuffer : IRingBuffer
                 return false;
             
             Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextReadIndex * BlockSize), Convert.ToInt32(BlockSize));
-            target.CopyTo(blockBuffer);
+            target.CopyTo(fullBlockBuffer);
             
             _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
             Interlocked.Decrement(ref _count);

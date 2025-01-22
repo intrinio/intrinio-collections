@@ -63,7 +63,7 @@ public class SingleProducerRingBuffer : IRingBuffer
     #endregion //Constructors
 
     /// <summary>
-    /// Not thread-safe try enqueue.  Parameter "blockToWrite" MUST be of length BlockSize! This is not safe for calling concurrently, and intended for use with a single producer.
+    /// Not thread-safe try enqueue.  This is not safe for calling concurrently, and intended for use with a single producer.
     /// Full behavior: the block trying to be enqueued will be dropped. 
     /// </summary>
     /// <param name="blockToWrite">The byte block to copy from.</param>
@@ -76,7 +76,7 @@ public class SingleProducerRingBuffer : IRingBuffer
         }
             
         Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextWriteIndex * BlockSize), Convert.ToInt32(BlockSize));
-        blockToWrite.CopyTo(target);
+        blockToWrite.Slice(0, Math.Min(blockToWrite.Length, Convert.ToInt32(_blockSize))).CopyTo(target);
             
         _blockNextWriteIndex = (++_blockNextWriteIndex) % BlockCapacity;
         Interlocked.Increment(ref _count);
@@ -87,8 +87,8 @@ public class SingleProducerRingBuffer : IRingBuffer
     /// <summary>
     /// Thread-safe try dequeue.  Parameter "blockBuffer" MUST be of length BlockSize!
     /// </summary>
-    /// <param name="blockBuffer">The buffer to copy the byte block to.</param>
-    public bool TryDequeue(Span<byte> blockBuffer)
+    /// <param name="fullBlockBuffer">The buffer to copy the byte block to.</param>
+    public bool TryDequeue(Span<byte> fullBlockBuffer)
     {
         lock (_readLock)
         {
@@ -96,7 +96,7 @@ public class SingleProducerRingBuffer : IRingBuffer
                 return false;
             
             Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextReadIndex * BlockSize), Convert.ToInt32(BlockSize));
-            target.CopyTo(blockBuffer);
+            target.CopyTo(fullBlockBuffer);
             
             _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
             Interlocked.Decrement(ref _count);
