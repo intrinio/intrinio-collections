@@ -46,6 +46,17 @@ public class PartitionedRoundRobinRingBuffer : IPartitionedRingBuffer
         }
     }
 
+    public ulong ProcessedCount
+    {
+        get
+        {
+            ulong sum = 0UL;
+            foreach (SingleProducerRingBuffer queue in _queues)
+                sum += queue.ProcessedCount;
+            return sum;
+        }
+    }
+
     /// <summary>
     /// The quantity of dropped blocks due to being full.
     /// </summary>

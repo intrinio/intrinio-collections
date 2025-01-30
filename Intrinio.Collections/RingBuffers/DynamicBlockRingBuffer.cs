@@ -6,7 +6,7 @@ using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 
 /// <summary>
-/// A read thread-safe, write not thread-safe implementation of the IDynamicBlockRingBuffer (single producer and multiple consumer), with support for tracking the used size of each byte-block.  Full behavior: the block trying to be enqueued will be dropped. 
+/// A read thread-safe, write not thread-safe implementation of the <see cref="IDynamicBlockRingBuffer"/> (single producer and multiple consumer), with support for tracking the used size of each byte-block.  Full behavior: the block trying to be enqueued will be dropped. 
 /// </summary>
 public class DynamicBlockRingBuffer: IDynamicBlockRingBuffer
 {
@@ -21,6 +21,9 @@ public class DynamicBlockRingBuffer: IDynamicBlockRingBuffer
     private readonly uint _blockSize;
     private readonly uint _blockCapacity;
     private ulong _dropCount;
+    
+    private ulong _processed;
+    public ulong ProcessedCount { get { return Interlocked.Read(_processed); } }
     
     public ulong Count { get { return Interlocked.Read(ref _count); } }
     public uint BlockSize { get { return _blockSize; } }
@@ -47,7 +50,7 @@ public class DynamicBlockRingBuffer: IDynamicBlockRingBuffer
     #region Constructors
 
     /// <summary>
-    /// A read thread-safe, write not thread-safe implementation of the IDynamicBlockRingBuffer (single producer and multiple consumer).  Full behavior: the block trying to be enqueued will be dropped. Provides support for dealing with blocks of varying size less than or equal to block size minus sizeof(UInt32). The first sizeof(UInt32) bytes of each block are reserved for tracking the used size of that block. 
+    /// A read thread-safe, write not thread-safe implementation of the <see cref="IDynamicBlockRingBuffer"/> (single producer and multiple consumer).  Full behavior: the block trying to be enqueued will be dropped. Provides support for dealing with blocks of varying size less than or equal to block size. 
     /// </summary>
     /// <param name="blockSize">The fixed size of each byte block. Internally, the first sizeof(UInt32) of each block is reserved for tracking the used size of each block. /></param>
     /// <param name="blockCapacity">The fixed capacity of block count.</param>
@@ -55,6 +58,7 @@ public class DynamicBlockRingBuffer: IDynamicBlockRingBuffer
     {
         _blockSize = blockSize;
         _blockCapacity = blockCapacity;
+        _processed = 0UL;
         _blockLengths = new int[_blockCapacity];
         _blockNextReadIndex = 0u;
         _blockNextWriteIndex = 0u;
@@ -118,6 +122,7 @@ public class DynamicBlockRingBuffer: IDynamicBlockRingBuffer
             
             _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
             Interlocked.Decrement(ref _count);
+            Interlocked.Increment(ref _processed);
             return true;
         }
     }
@@ -157,6 +162,7 @@ public class DynamicBlockRingBuffer: IDynamicBlockRingBuffer
             
             _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
             Interlocked.Decrement(ref _count);
+            Interlocked.Increment(ref _processed);
             return true;
         }
     }
