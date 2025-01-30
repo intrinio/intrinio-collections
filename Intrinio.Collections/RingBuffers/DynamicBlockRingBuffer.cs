@@ -23,7 +23,7 @@ public class DynamicBlockRingBuffer: IDynamicBlockRingBuffer
     private ulong _dropCount;
     
     private ulong _processed;
-    public ulong ProcessedCount { get { return Interlocked.Read(_processed); } }
+    public ulong ProcessedCount { get { return Interlocked.Read(ref _processed); } }
     
     public ulong Count { get { return Interlocked.Read(ref _count); } }
     public uint BlockSize { get { return _blockSize; } }

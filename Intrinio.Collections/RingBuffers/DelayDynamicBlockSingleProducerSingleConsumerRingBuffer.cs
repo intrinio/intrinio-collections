@@ -10,7 +10,7 @@ using System.Runtime.CompilerServices;
 /// A single producer, single consumer dynamic block ring buffer implementation of the <see cref="IDynamicBlockRingBuffer"/> where blocks are delayed from being dequeued for a specified time. Dequeues are blocked until a non-partition block is able to be dequeued. Enqueue partition blocks at regular intervals to gate-keep time partitions, as contiguous non-partition blocks between partition blocks will not be delayed.  Provides support for dealing with blocks of varying size less than or equal to block size.
 /// Full behavior: the block trying to be enqueued will be dropped. 
 /// </summary>
-public sealed class DelayDynamicBlockSingleProducerSingleConsumerRingBuffer : IDelayDynamicBlockRingBuffer
+public class DelayDynamicBlockSingleProducerSingleConsumerRingBuffer : IDelayDynamicBlockRingBuffer
 {
     #region Data Members
     private const int PartitionPacketSize = sizeof(long);
@@ -52,7 +52,7 @@ public sealed class DelayDynamicBlockSingleProducerSingleConsumerRingBuffer : ID
         }
     }
     
-    public ulong ProcessedCount { get { return _processed; } }
+    public ulong ProcessedCount { get { return Interlocked.Read(ref _processed); } }
     
     #endregion //Data Members
     
