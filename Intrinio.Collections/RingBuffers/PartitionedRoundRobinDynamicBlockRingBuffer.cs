@@ -46,6 +46,17 @@ public class PartitionedRoundRobinDynamicBlockRingBuffer : IPartitionedDynamicBl
             return sum;
         }
     }
+    
+    public ulong ProcessedCount
+    {
+        get
+        {
+            ulong sum = 0UL;
+            foreach (DynamicBlockSingleProducerRingBuffer queue in _queues)
+                sum += queue.ProcessedCount;
+            return sum;
+        }
+    }
 
     /// <summary>
     /// The quantity of dropped blocks due to being full.
@@ -84,7 +95,7 @@ public class PartitionedRoundRobinDynamicBlockRingBuffer : IPartitionedDynamicBl
     }
 
     /// <summary>
-    /// A fixed size group of <see cref="Intrinio.Collections.RingBuffers.DynamicBlockSingleProducerRingBuffer"/> partitioned by an index, so that multiple writers may have their own write channel without being locked, while consumption is channel agnostic, thread-safe, and performed in a round-robin style.  Provides support for dealing with blocks of varying size less than or equal to block size minus sizeof(UInt32). The first sizeof(UInt32) bytes of each block are reserved for tracking the used size of that block.
+    /// A fixed size group of <see cref="Intrinio.Collections.RingBuffers.DynamicBlockSingleProducerRingBuffer"/> partitioned by an index, so that multiple writers may have their own write channel without being locked, while consumption is channel agnostic, thread-safe, and performed in a round-robin style.  Provides support for dealing with blocks of varying size less than or equal to block size. .
     /// </summary>
     /// <param name="concurrency">The quantity of concurrent access required for writing. This many channels will be created.</param>
     /// <param name="blockSize">The fixed size of each byte block.</param>

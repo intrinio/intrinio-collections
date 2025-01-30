@@ -19,6 +19,8 @@ public class RingBuffer : IRingBuffer
     private readonly uint _blockSize;
     private readonly uint _blockCapacity;
     private ulong _dropCount;
+    private ulong _processed;
+    public ulong ProcessedCount { get { return Interlocked.Read(ref _processed); } }
     
     public ulong Count { get { return Interlocked.Read(ref _count); } }
     public uint BlockSize { get { return _blockSize; } }
@@ -53,6 +55,7 @@ public class RingBuffer : IRingBuffer
     {
         this._blockSize = blockSize;
         this._blockCapacity = blockCapacity;
+        _processed = 0UL;
         _blockNextReadIndex = 0u;
         _blockNextWriteIndex = 0u;
         _count = 0u;
@@ -111,6 +114,7 @@ public class RingBuffer : IRingBuffer
             
             _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
             Interlocked.Decrement(ref _count);
+            Interlocked.Increment(ref _processed);
             return true;
         }
     }

@@ -28,6 +28,11 @@ public interface IPartitionedRingBuffer
     ulong Count { get; }
     
     /// <summary>
+    /// The quantity of blocks dequeued from the ring buffer.
+    /// </summary>
+    ulong ProcessedCount { get ; }
+    
+    /// <summary>
     /// The fixed size of each byte block.
     /// </summary>
     uint BlockSize { get; }
