@@ -88,7 +88,7 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
     /// <param name="fileDirectory">The directory in which the memory mapped files will reside.</param>
     /// <param name="fileNamePrefix">The prefix for the names of the files.</param>
     /// <param name="stopwatch">The stopwatch to use for comparison of elapsed milliseconds at time of dequeue to the elapsed milliseconds at the time a partition block was enqueued.</param>
-    /// <param name="targetPageSize">The preferred page size for memory swapping. This size, or something closely under it will be used.</param>
+    /// <param name="targetPageSize">The preferred page size for memory swapping. This size, or something close will be used.</param>
     public MemMapDelayDynamicBlockSingleProducerRingBuffer(uint delayMilliseconds, uint blockSize, ulong blockCapacity, string fileDirectory, string fileNamePrefix, System.Diagnostics.Stopwatch? stopwatch = default, ulong targetPageSize = DefaultTargetPageSize)
     {
         _blockSize = blockSize;
@@ -106,11 +106,13 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         _blockLengthsReadPageIndex = 0UL;
         _enqueueTimesWritePageIndex = 0UL;
         _enqueueTimesReadPageIndex = 0UL;
+        
         if (blockSize > targetPageSize)
             throw new ArgumentException($"Argument blockSize must be less than {nameof(targetPageSize)}", nameof(blockSize));
-        _dataPageSize = (targetPageSize / Convert.ToUInt64(blockSize)) * Convert.ToUInt64(blockSize);
-        _blockLengthsPageSize = (targetPageSize / Convert.ToUInt64(sizeof(int))) * Convert.ToUInt64(sizeof(int));
-        _enqueueTimesPageSize = (targetPageSize / Convert.ToUInt64(sizeof(long))) * Convert.ToUInt64(sizeof(long));
+        
+        _dataPageSize = (Math.Min(targetPageSize, Convert.ToUInt64(blockSize) * _blockCapacity) / Convert.ToUInt64(blockSize)) * Convert.ToUInt64(blockSize);
+        _blockLengthsPageSize = (Math.Min(targetPageSize, Convert.ToUInt64(sizeof(int)) * _blockCapacity) / Convert.ToUInt64(sizeof(int))) * Convert.ToUInt64(sizeof(int));
+        _enqueueTimesPageSize = (Math.Min(targetPageSize, Convert.ToUInt64(sizeof(long)) * _blockCapacity) / Convert.ToUInt64(sizeof(long))) * Convert.ToUInt64(sizeof(long));
         _count = 0u;
         _dropCount = 0UL;
         _readLock = new object();
