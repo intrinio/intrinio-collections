@@ -11,13 +11,13 @@ public class DropOldestRingBuffer : IRingBuffer
 {
     #region Data Members
     private readonly byte[] _data;
-    private uint _blockNextReadIndex;
-    private uint _blockNextWriteIndex;
+    private ulong _blockNextReadIndex;
+    private ulong _blockNextWriteIndex;
     private readonly object _readLock;
     private readonly object _writeLock;
     private ulong _count;
     private readonly uint _blockSize;
-    private readonly uint _blockCapacity;
+    private readonly ulong _blockCapacity;
     private ulong _dropCount;
     
     private ulong _processed;
@@ -25,7 +25,7 @@ public class DropOldestRingBuffer : IRingBuffer
     
     public ulong Count { get { return Interlocked.Read(ref _count); } }
     public uint BlockSize { get { return _blockSize; } }
-    public uint BlockCapacity { get { return _blockCapacity; } }
+    public ulong BlockCapacity { get { return _blockCapacity; } }
     public ulong DropCount { get { return Interlocked.Read(ref _dropCount); } }
 
     public bool IsEmpty
@@ -52,7 +52,7 @@ public class DropOldestRingBuffer : IRingBuffer
     /// </summary>
     /// <param name="blockSize">The fixed size of each byte block.</param>
     /// <param name="blockCapacity">The fixed capacity of block count.</param>
-    public DropOldestRingBuffer(uint blockSize, uint blockCapacity)
+    public DropOldestRingBuffer(uint blockSize, ulong blockCapacity)
     {
         this._blockSize = blockSize;
         this._blockCapacity = blockCapacity;

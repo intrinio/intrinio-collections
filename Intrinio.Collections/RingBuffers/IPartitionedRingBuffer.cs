@@ -40,7 +40,7 @@ public interface IPartitionedRingBuffer
     /// <summary>
     /// The fixed capacity of blocks in each ring buffer.
     /// </summary>
-    uint EachQueueBlockCapacity { get; }
+    ulong EachQueueBlockCapacity { get; }
     
     /// <summary>
     /// The fixed total capacity of blocks across all ring buffers.

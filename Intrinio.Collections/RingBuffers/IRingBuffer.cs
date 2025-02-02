@@ -39,7 +39,7 @@ public interface IRingBuffer
     /// <summary>
     /// The fixed capacity of blocks in the ring buffer.
     /// </summary>
-    uint BlockCapacity { get; }
+    ulong BlockCapacity { get; }
     
     /// <summary>
     /// The quantity of dropped blocks due to being full.

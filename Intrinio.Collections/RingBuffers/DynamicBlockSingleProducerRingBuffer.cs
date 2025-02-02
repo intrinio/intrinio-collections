@@ -13,12 +13,12 @@ public class DynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
     #region Data Members
     private readonly byte[] _data;
     private readonly int[] _blockLengths;
-    private uint _blockNextReadIndex;
-    private uint _blockNextWriteIndex;
+    private ulong _blockNextReadIndex;
+    private ulong _blockNextWriteIndex;
     private readonly object _readLock;
     private ulong _count;
     private readonly uint _blockSize;
-    private readonly uint _blockCapacity;
+    private readonly ulong _blockCapacity;
     private ulong _dropCount;
     
     private ulong _processed;
@@ -26,7 +26,7 @@ public class DynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
     
     public ulong Count { get { return Interlocked.Read(ref _count); } }
     public uint BlockSize { get { return _blockSize; } }
-    public uint BlockCapacity { get { return _blockCapacity; } }
+    public ulong BlockCapacity { get { return _blockCapacity; } }
     public ulong DropCount { get { return Interlocked.Read(ref _dropCount); } }
 
     public bool IsEmpty
@@ -51,9 +51,9 @@ public class DynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
     /// <summary>
     /// A read thread-safe, write not thread-safe implementation of the <see cref="IDynamicBlockRingBuffer"/> (single producer and multiple consumer).  Full behavior: the block trying to be enqueued will be dropped. Provides support for dealing with blocks of varying size less than or equal to block size. 
     /// </summary>
-    /// <param name="blockSize">The fixed size of each byte block. Internally, the first sizeof(UInt32) of each block is reserved for tracking the used size of each block. /></param>
+    /// <param name="blockSize">The fixed size of each byte block.  /></param>
     /// <param name="blockCapacity">The fixed capacity of block count.</param>
-    public DynamicBlockSingleProducerRingBuffer(uint blockSize, uint blockCapacity)
+    public DynamicBlockSingleProducerRingBuffer(uint blockSize, ulong blockCapacity)
     {
         _blockSize = blockSize;
         _blockCapacity = blockCapacity;
