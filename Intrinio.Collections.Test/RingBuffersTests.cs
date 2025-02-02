@@ -193,13 +193,13 @@ public class RingBuffersTests
                 fs.SetLength(Convert.ToInt64(blockCapacity) * Convert.ToInt64(blockSize));
             }
             var data = MemoryMappedFile.CreateFromFile(dataFilePath);
-            var dataWriteAccessor = data.CreateViewAccessor(0, Convert.ToInt64(dataPageSize), MemoryMappedFileAccess.ReadWriteExecute);
+            var dataWriteAccessor = data.CreateViewAccessor(0, Convert.ToInt64(dataPageSize), MemoryMappedFileAccess.ReadWrite);
             var dataReadAccessor = data.CreateViewAccessor(0, Convert.ToInt64(dataPageSize), MemoryMappedFileAccess.Read);
 
             ulong expected = 42UL;
             dataWriteAccessor.Write(0L, expected);
             dataReadAccessor.Read(0L, out ulong value);
-            Assert.AreEqual(expected, value);
+            Assert.AreEqual(expected, value); //expect that the read can see the write without flushing.
         }
         catch (Exception e)
         {

@@ -15,7 +15,7 @@ using System.IO.MemoryMappedFiles;
 public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer, IDisposable
 {
     #region Data Members
-    private const ulong DefaultTargetPageSize = 4096UL;
+    private const ulong DefaultTargetPageSize = 8_388_608UL;
     private MemoryMappedFile _data;
     private readonly byte[] _writeBuffer;
     private MemoryMappedViewAccessor _dataWriteAccessor;
@@ -90,7 +90,6 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
     /// <param name="targetPageSize">The preferred page size for memory swapping. This size, or something closely under it will be used.</param>
     public MemMapDelayDynamicBlockSingleProducerRingBuffer(uint delayMilliseconds, uint blockSize, ulong blockCapacity, string fileDirectory, string fileNamePrefix, System.Diagnostics.Stopwatch? stopwatch = default, ulong targetPageSize = DefaultTargetPageSize)
     {
-        //8_388_608UL
         _blockSize = blockSize;
         _blockCapacity = blockCapacity;
         _delayMilliseconds = Convert.ToInt64(delayMilliseconds);
@@ -125,7 +124,7 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
             fs.SetLength(Convert.ToInt64(blockCapacity) * Convert.ToInt64(blockSize));
         }
         _data = MemoryMappedFile.CreateFromFile(dataFilePath);
-        _dataWriteAccessor = _data.CreateViewAccessor(0, Convert.ToInt64(_dataPageSize), MemoryMappedFileAccess.ReadWriteExecute);
+        _dataWriteAccessor = _data.CreateViewAccessor(0, Convert.ToInt64(_dataPageSize), MemoryMappedFileAccess.ReadWrite);
         _dataReadAccessor = _data.CreateViewAccessor(0, Convert.ToInt64(_dataPageSize), MemoryMappedFileAccess.Read);
         
         if (File.Exists(blockLengthsFilePath))
@@ -135,7 +134,7 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
             fs.SetLength(Convert.ToInt64(blockCapacity) * Convert.ToInt64(sizeof(int)));
         }
         _blockLengthsData = MemoryMappedFile.CreateFromFile(blockLengthsFilePath);
-        _blockLengthsWriteAccessor = _blockLengthsData.CreateViewAccessor(0, Convert.ToInt64(_blockLengthsPageSize), MemoryMappedFileAccess.ReadWriteExecute);
+        _blockLengthsWriteAccessor = _blockLengthsData.CreateViewAccessor(0, Convert.ToInt64(_blockLengthsPageSize), MemoryMappedFileAccess.ReadWrite);
         _blockLengthsReadAccessor = _blockLengthsData.CreateViewAccessor(0, Convert.ToInt64(_blockLengthsPageSize), MemoryMappedFileAccess.Read);
         
         if (File.Exists(enqueueTimesFilePath))
@@ -145,7 +144,7 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
             fs.SetLength(Convert.ToInt64(blockCapacity) * Convert.ToInt64(sizeof(long)));
         }
         _enqueueTimesData = MemoryMappedFile.CreateFromFile(enqueueTimesFilePath);
-        _enqueueTimesWriteAccessor = _enqueueTimesData.CreateViewAccessor(0, Convert.ToInt64(_enqueueTimesPageSize), MemoryMappedFileAccess.ReadWriteExecute);
+        _enqueueTimesWriteAccessor = _enqueueTimesData.CreateViewAccessor(0, Convert.ToInt64(_enqueueTimesPageSize), MemoryMappedFileAccess.ReadWrite);
         _enqueueTimesReadAccessor = _enqueueTimesData.CreateViewAccessor(0, Convert.ToInt64(_enqueueTimesPageSize), MemoryMappedFileAccess.Read);
     }
     
@@ -192,9 +191,9 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         ulong nextDesiredPageIndex = GetPageIndex(_blockNextWriteIndex, _blockSize, _dataPageSize);
         if (nextDesiredPageIndex != _dataWritePageIndex)
         {
-            //_dataWriteAccessor.Flush(); //we already flush immediately when we write.
+            _dataWriteAccessor.Flush();
             _dataWriteAccessor.Dispose();
-            _dataWriteAccessor = _data.CreateViewAccessor(Convert.ToInt64(GetPageStartingIndex(nextDesiredPageIndex, _dataPageSize)), Convert.ToInt64(_dataPageSize), MemoryMappedFileAccess.ReadWriteExecute);
+            _dataWriteAccessor = _data.CreateViewAccessor(Convert.ToInt64(GetPageStartingIndex(nextDesiredPageIndex, _dataPageSize)), Convert.ToInt64(_dataPageSize), MemoryMappedFileAccess.ReadWrite);
             _dataWritePageIndex = nextDesiredPageIndex;
         }
         
@@ -206,9 +205,9 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         ulong nextDesiredPageIndex = GetPageIndex(_blockNextWriteIndex, sizeof(int), _blockLengthsPageSize);
         if (nextDesiredPageIndex != _blockLengthsWritePageIndex)
         {
-            //_blockLengthsWriteAccessor.Flush(); //we already flush immediately when we write.
+            _blockLengthsWriteAccessor.Flush();
             _blockLengthsWriteAccessor.Dispose();
-            _blockLengthsWriteAccessor = _blockLengthsData.CreateViewAccessor(Convert.ToInt64(GetPageStartingIndex(nextDesiredPageIndex, _blockLengthsPageSize)), Convert.ToInt64(_blockLengthsPageSize), MemoryMappedFileAccess.ReadWriteExecute);
+            _blockLengthsWriteAccessor = _blockLengthsData.CreateViewAccessor(Convert.ToInt64(GetPageStartingIndex(nextDesiredPageIndex, _blockLengthsPageSize)), Convert.ToInt64(_blockLengthsPageSize), MemoryMappedFileAccess.ReadWrite);
             _blockLengthsWritePageIndex = nextDesiredPageIndex;
         }
         
@@ -220,9 +219,9 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         ulong nextDesiredPageIndex = GetPageIndex(_blockNextWriteIndex, sizeof(long), _enqueueTimesPageSize);
         if (nextDesiredPageIndex != _enqueueTimesWritePageIndex)
         {
-            //_enqueueTimesWriteAccessor.Flush(); //we already flush immediately when we write.
+            _enqueueTimesWriteAccessor.Flush();
             _enqueueTimesWriteAccessor.Dispose();
-            _enqueueTimesWriteAccessor = _enqueueTimesData.CreateViewAccessor(Convert.ToInt64(GetPageStartingIndex(nextDesiredPageIndex, _enqueueTimesPageSize)), Convert.ToInt64(_enqueueTimesPageSize), MemoryMappedFileAccess.ReadWriteExecute);
+            _enqueueTimesWriteAccessor = _enqueueTimesData.CreateViewAccessor(Convert.ToInt64(GetPageStartingIndex(nextDesiredPageIndex, _enqueueTimesPageSize)), Convert.ToInt64(_enqueueTimesPageSize), MemoryMappedFileAccess.ReadWrite);
             _enqueueTimesWritePageIndex = nextDesiredPageIndex;
         }
         
@@ -288,15 +287,12 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         trimmedBlock.CopyTo(_writeBuffer);
         MemoryMappedViewAccessor dataWriteAccessor = GetDataWriteAccessor();
         dataWriteAccessor.WriteArray(Convert.ToInt64(GetIntraPageOffset(_blockNextWriteIndex, BlockSize, _dataPageSize)), _writeBuffer, 0, _writeBuffer.Length);
-        dataWriteAccessor.Flush();
 
         MemoryMappedViewAccessor blockLengthsWriteAccessor = GetBlockLengthsWriteAccessor();
         blockLengthsWriteAccessor.Write(Convert.ToInt64(GetIntraPageOffset(_blockNextWriteIndex, sizeof(int), _blockLengthsPageSize)), length);
-        blockLengthsWriteAccessor.Flush();
         
         MemoryMappedViewAccessor enqueueTimesWriteAccessor = GetEnqueueTimesWriteAccessor();
         enqueueTimesWriteAccessor.Write(Convert.ToInt64(GetIntraPageOffset(_blockNextWriteIndex, sizeof(long), _enqueueTimesPageSize)), _stopwatch.ElapsedMilliseconds);
-        enqueueTimesWriteAccessor.Flush();
             
         _blockNextWriteIndex = (++_blockNextWriteIndex) % BlockCapacity;
         Interlocked.Increment(ref _count);
@@ -310,24 +306,23 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
     /// <param name="fullBlockBuffer">The buffer to copy the byte block to.</param>
     public bool TryDequeue(Span<byte> fullBlockBuffer)
     {
-        // lock (_readLock)
-        // {
-        //     if (IsEmptyNoLock())
-        //         return false;
-        //     
-        //     long enqueueTime = GetEnqueueTimesReadAccessor().ReadInt64(Convert.ToInt64(GetIntraPageOffset(_blockNextReadIndex, sizeof(long), _enqueueTimesPageSize)));
-        //     if (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - enqueueTime))
-        //         return false;
-        //     
-        //     Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextReadIndex * BlockSize), Convert.ToInt32(BlockSize));
-        //     target.CopyTo(fullBlockBuffer);
-        //     
-        //     _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
-        //     Interlocked.Decrement(ref _count);
-        //     Interlocked.Increment(ref _processed);
-        //     return true;
-        // }
-        return false;
+        lock (_readLock)
+        {
+            if (IsEmptyNoLock())
+                return false;
+            
+            long enqueueTime = GetEnqueueTimesReadAccessor().ReadInt64(Convert.ToInt64(GetIntraPageOffset(_blockNextReadIndex, sizeof(long), _enqueueTimesPageSize)));
+            if (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - enqueueTime))
+                return false;
+            
+            Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextReadIndex * BlockSize), Convert.ToInt32(BlockSize));
+            target.CopyTo(fullBlockBuffer);
+            
+            _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
+            Interlocked.Decrement(ref _count);
+            Interlocked.Increment(ref _processed);
+            return true;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -350,24 +345,22 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
     /// <returns>Whether the dequeue successfully retrieved a block or not.</returns>
     public bool TryDequeue(Span<byte> fullBlockBuffer, out Span<byte> trimmedBuffer)
     {
-        // lock (_readLock)
-        // {
-        //     if (IsEmptyNoLock() || (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - _enqueueTimes[_blockNextReadIndex])))
-        //     {
-        //         trimmedBuffer = fullBlockBuffer;
-        //         return false;
-        //     }
-        //     
-        //     Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextReadIndex * BlockSize), Convert.ToInt32(BlockSize));
-        //     target.CopyTo(fullBlockBuffer);
-        //     trimmedBuffer = fullBlockBuffer.Slice(0, _blockLengths[_blockNextReadIndex]);
-        //     
-        //     _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
-        //     Interlocked.Decrement(ref _count);
-        //     Interlocked.Increment(ref _processed);
-        //     return true;
-        // }
-        trimmedBuffer = fullBlockBuffer;
-        return false;
+        lock (_readLock)
+        {
+            if (IsEmptyNoLock() || (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - _enqueueTimes[_blockNextReadIndex])))
+            {
+                trimmedBuffer = fullBlockBuffer;
+                return false;
+            }
+            
+            Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextReadIndex * BlockSize), Convert.ToInt32(BlockSize));
+            target.CopyTo(fullBlockBuffer);
+            trimmedBuffer = fullBlockBuffer.Slice(0, _blockLengths[_blockNextReadIndex]);
+            
+            _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
+            Interlocked.Decrement(ref _count);
+            Interlocked.Increment(ref _processed);
+            return true;
+        }
     }
 }
