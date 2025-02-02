@@ -9,7 +9,7 @@ using System.IO;
 /// <summary>
 /// A read thread-safe, write not thread-safe implementation of the <see cref="IDynamicBlockRingBuffer"/> (single producer and multiple consumer), with support for tracking the used size of each byte-block.  Full behavior: the block trying to be enqueued will be dropped. 
 /// </summary>
-public class MemMapDelayDynamicBlockRingBuffer: IDynamicBlockRingBuffer
+public class MemMapDelayDynamicBlockRingBuffer: IDynamicBlockRingBuffer, IDisposable
 {
     #region Data Members
     private const ulong DefaultTargetPageSize = 8_388_608UL;
