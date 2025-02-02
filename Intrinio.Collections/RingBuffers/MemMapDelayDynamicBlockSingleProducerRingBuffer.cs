@@ -18,6 +18,7 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
     private const ulong DefaultTargetPageSize = 8_388_608UL;
     private MemoryMappedFile _data;
     private readonly byte[] _writeBuffer;
+    private readonly byte[] _readBuffer;
     private MemoryMappedViewAccessor _dataWriteAccessor;
     private ulong _dataWritePageIndex;
     private MemoryMappedViewAccessor _dataReadAccessor;
@@ -95,7 +96,8 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         _delayMilliseconds = Convert.ToInt64(delayMilliseconds);
         _processed = 0UL;
         _stopwatch = stopwatch ?? System.Diagnostics.Stopwatch.StartNew();
-        _writeBuffer = new byte[_blockCapacity];
+        _writeBuffer = new byte[blockSize];
+        _readBuffer = new byte[blockSize];
         _blockNextReadIndex = 0u;
         _blockNextWriteIndex = 0u;
         _dataWritePageIndex = 0UL;
@@ -285,14 +287,10 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         int length = Math.Min(blockToEnqueue.Length, Convert.ToInt32(_blockSize));
         ReadOnlySpan<byte> trimmedBlock = blockToEnqueue.Slice(0, length);
         trimmedBlock.CopyTo(_writeBuffer);
-        MemoryMappedViewAccessor dataWriteAccessor = GetDataWriteAccessor();
-        dataWriteAccessor.WriteArray(Convert.ToInt64(GetIntraPageOffset(_blockNextWriteIndex, BlockSize, _dataPageSize)), _writeBuffer, 0, _writeBuffer.Length);
+        GetDataWriteAccessor().WriteArray(Convert.ToInt64(GetIntraPageOffset(_blockNextWriteIndex, BlockSize, _dataPageSize)), _writeBuffer, 0, _writeBuffer.Length);
 
-        MemoryMappedViewAccessor blockLengthsWriteAccessor = GetBlockLengthsWriteAccessor();
-        blockLengthsWriteAccessor.Write(Convert.ToInt64(GetIntraPageOffset(_blockNextWriteIndex, sizeof(int), _blockLengthsPageSize)), length);
-        
-        MemoryMappedViewAccessor enqueueTimesWriteAccessor = GetEnqueueTimesWriteAccessor();
-        enqueueTimesWriteAccessor.Write(Convert.ToInt64(GetIntraPageOffset(_blockNextWriteIndex, sizeof(long), _enqueueTimesPageSize)), _stopwatch.ElapsedMilliseconds);
+        GetBlockLengthsWriteAccessor().Write(Convert.ToInt64(GetIntraPageOffset(_blockNextWriteIndex, sizeof(int), _blockLengthsPageSize)), length);
+        GetEnqueueTimesWriteAccessor().Write(Convert.ToInt64(GetIntraPageOffset(_blockNextWriteIndex, sizeof(long), _enqueueTimesPageSize)), _stopwatch.ElapsedMilliseconds);
             
         _blockNextWriteIndex = (++_blockNextWriteIndex) % BlockCapacity;
         Interlocked.Increment(ref _count);
@@ -315,8 +313,8 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
             if (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - enqueueTime))
                 return false;
             
-            Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextReadIndex * BlockSize), Convert.ToInt32(BlockSize));
-            target.CopyTo(fullBlockBuffer);
+            GetDataReadAccessor().ReadArray(Convert.ToInt64(GetIntraPageOffset(_blockNextReadIndex, _blockSize, _dataPageSize)), _readBuffer, 0, _readBuffer.Length);
+            _readBuffer.CopyTo(fullBlockBuffer);
             
             _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
             Interlocked.Decrement(ref _count);
@@ -347,15 +345,18 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
     {
         lock (_readLock)
         {
-            if (IsEmptyNoLock() || (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - _enqueueTimes[_blockNextReadIndex])))
-            {
-                trimmedBuffer = fullBlockBuffer;
+            trimmedBuffer = fullBlockBuffer;
+            if (IsEmptyNoLock())
                 return false;
-            }
+
+            long enqueueTime = GetEnqueueTimesReadAccessor().ReadInt64(Convert.ToInt64(GetIntraPageOffset(_blockNextReadIndex, sizeof(long), _enqueueTimesPageSize)));
+            if (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - enqueueTime))
+                return false;
             
-            Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextReadIndex * BlockSize), Convert.ToInt32(BlockSize));
-            target.CopyTo(fullBlockBuffer);
-            trimmedBuffer = fullBlockBuffer.Slice(0, _blockLengths[_blockNextReadIndex]);
+            GetDataReadAccessor().ReadArray(Convert.ToInt64(GetIntraPageOffset(_blockNextReadIndex, _blockSize, _dataPageSize)), _readBuffer, 0, _readBuffer.Length);
+            _readBuffer.CopyTo(fullBlockBuffer);
+            int length = GetBlockLengthsReadAccessor().ReadInt32(Convert.ToInt64(GetIntraPageOffset(_blockNextReadIndex, sizeof(int), _blockLengthsPageSize)));
+            trimmedBuffer = fullBlockBuffer.Slice(0, length);
             
             _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
             Interlocked.Decrement(ref _count);
