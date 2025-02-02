@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.IO.MemoryMappedFiles;
 
 namespace Intrinio.Collections.Test;
 
@@ -173,5 +174,40 @@ public class RingBuffersTests
         sw.Stop();
         
         Assert.IsTrue(sw.ElapsedMilliseconds + slop >= delayInMilliseconds, "Dequeue should be delayed by the given time.");
+    }
+
+    [TestMethod]
+    public void MMTest()
+    {
+        ulong blockCapacity = 1000;
+        uint blockSize = 512u;
+        ulong targetPageSize = 4096UL;
+        ulong dataPageSize = (targetPageSize / Convert.ToUInt64(blockSize)) * Convert.ToUInt64(blockSize);
+        string dataFilePath = Path.Combine(System.IO.Path.GetTempPath(), "TestData.bin");
+        try
+        {
+            if (File.Exists(dataFilePath))
+                File.Delete(dataFilePath);
+            using (var fs = new FileStream(dataFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                fs.SetLength(Convert.ToInt64(blockCapacity) * Convert.ToInt64(blockSize));
+            }
+            var data = MemoryMappedFile.CreateFromFile(dataFilePath);
+            var dataWriteAccessor = data.CreateViewAccessor(0, Convert.ToInt64(dataPageSize), MemoryMappedFileAccess.ReadWriteExecute);
+            var dataReadAccessor = data.CreateViewAccessor(0, Convert.ToInt64(dataPageSize), MemoryMappedFileAccess.Read);
+
+            ulong expected = 42UL;
+            dataWriteAccessor.Write(0L, expected);
+            dataReadAccessor.Read(0L, out ulong value);
+            Assert.AreEqual(expected, value);
+        }
+        catch (Exception e)
+        {
+            Assert.Fail(e.Message);
+        }
+        finally
+        {
+            File.Delete(dataFilePath);
+        }
     }
 }

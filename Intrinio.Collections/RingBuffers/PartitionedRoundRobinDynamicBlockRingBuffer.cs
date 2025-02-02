@@ -15,7 +15,7 @@ public class PartitionedRoundRobinDynamicBlockRingBuffer : IPartitionedDynamicBl
     private ulong _readIndex;
     private readonly DynamicBlockSingleProducerRingBuffer[] _queues;
     private readonly uint _blockSize;
-    private readonly uint _eachBlockCapacity;
+    private readonly ulong _eachBlockCapacity;
     private readonly ulong _totalBlockCapacity;
     
     /// <summary>
@@ -26,7 +26,7 @@ public class PartitionedRoundRobinDynamicBlockRingBuffer : IPartitionedDynamicBl
     /// <summary>
     /// The fixed capacity of blocks in each ring buffer.
     /// </summary>
-    public uint EachQueueBlockCapacity { get { return _eachBlockCapacity; } }
+    public ulong EachQueueBlockCapacity { get { return _eachBlockCapacity; } }
     
     /// <summary>
     /// The fixed total capacity of blocks across all ring buffers.
@@ -101,7 +101,7 @@ public class PartitionedRoundRobinDynamicBlockRingBuffer : IPartitionedDynamicBl
     /// <param name="blockSize">The fixed size of each byte block.</param>
     /// <param name="eachQueueBlockCapacity">The fixed capacity of block count in each channel.</param>
     /// <exception cref="ArgumentException">Throws an ArgumentException if concurrency is zero.</exception>
-    public PartitionedRoundRobinDynamicBlockRingBuffer(uint concurrency, uint blockSize, uint eachQueueBlockCapacity)
+    public PartitionedRoundRobinDynamicBlockRingBuffer(uint concurrency, uint blockSize, ulong eachQueueBlockCapacity)
     {
         if (concurrency == 0U)
             throw new ArgumentException("Argument concurrency must be greater than zero.", nameof(concurrency));
