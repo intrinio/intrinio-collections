@@ -1,13 +1,10 @@
-using System.IO;
-using System.Numerics;
-
 namespace Intrinio.Collections.RingBuffers;
 
 using System;
 using System.Threading;
-using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.IO.MemoryMappedFiles;
+using System.IO;
 
 /// <summary>
 /// A read thread-safe, write not thread-safe implementation of the <see cref="IDynamicBlockRingBuffer"/> (single producer and multiple consumer), with support for tracking the used size of each byte-block.  Full behavior: the block trying to be enqueued will be dropped. 
@@ -48,9 +45,6 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
     private readonly uint _blockSize;
     private readonly ulong _blockCapacity;
     private ulong _dropCount;
-    private readonly string dataFilePath;
-    private readonly string blockLengthsFilePath;
-    private readonly string enqueueTimesFilePath;
     
     private ulong _processed;
     public ulong ProcessedCount { get { return Interlocked.Read(ref _processed); } }
@@ -98,8 +92,8 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         _stopwatch = stopwatch ?? System.Diagnostics.Stopwatch.StartNew();
         _writeBuffer = new byte[blockSize];
         _readBuffer = new byte[blockSize];
-        _blockNextReadIndex = 0u;
-        _blockNextWriteIndex = 0u;
+        _blockNextReadIndex = 0UL;
+        _blockNextWriteIndex = 0UL;
         _dataWritePageIndex = 0UL;
         _dataReadPageIndex = 0UL;
         _blockLengthsWritePageIndex = 0UL;
@@ -117,12 +111,10 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         _dropCount = 0UL;
         _readLock = new object();
         
-        dataFilePath = System.IO.Path.Combine(fileDirectory, $"{fileNamePrefix}_Data.bin");
-        blockLengthsFilePath = System.IO.Path.Combine(fileDirectory, $"{fileNamePrefix}_Lengths.bin");
-        enqueueTimesFilePath = System.IO.Path.Combine(fileDirectory, $"{fileNamePrefix}_EnqueueTimes.bin");
+        string dataFilePath = System.IO.Path.Combine(fileDirectory, $"{fileNamePrefix}_Data.bin");
+        string blockLengthsFilePath = System.IO.Path.Combine(fileDirectory, $"{fileNamePrefix}_Lengths.bin");
+        string enqueueTimesFilePath = System.IO.Path.Combine(fileDirectory, $"{fileNamePrefix}_EnqueueTimes.bin");
         
-        if (File.Exists(dataFilePath))
-            File.Delete(dataFilePath);
         using (var fs = new FileStream(dataFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
             fs.SetLength(Convert.ToInt64(blockCapacity) * Convert.ToInt64(blockSize));
@@ -131,8 +123,6 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         _dataWriteAccessor = _data.CreateViewAccessor(0, Convert.ToInt64(_dataPageSize), MemoryMappedFileAccess.ReadWrite);
         _dataReadAccessor = _data.CreateViewAccessor(0, Convert.ToInt64(_dataPageSize), MemoryMappedFileAccess.Read);
         
-        if (File.Exists(blockLengthsFilePath))
-            File.Delete(blockLengthsFilePath);
         using (var fs = new FileStream(blockLengthsFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
             fs.SetLength(Convert.ToInt64(blockCapacity) * Convert.ToInt64(sizeof(int)));
@@ -141,8 +131,6 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         _blockLengthsWriteAccessor = _blockLengthsData.CreateViewAccessor(0, Convert.ToInt64(_blockLengthsPageSize), MemoryMappedFileAccess.ReadWrite);
         _blockLengthsReadAccessor = _blockLengthsData.CreateViewAccessor(0, Convert.ToInt64(_blockLengthsPageSize), MemoryMappedFileAccess.Read);
         
-        if (File.Exists(enqueueTimesFilePath))
-            File.Delete(enqueueTimesFilePath);
         using (var fs = new FileStream(enqueueTimesFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
             fs.SetLength(Convert.ToInt64(blockCapacity) * Convert.ToInt64(sizeof(long)));
