@@ -9,6 +9,31 @@ using Intrinio.Collections.RingBuffers;
 [TestClass]
 public class RingBuffersTests
 {
+    #region PartitionedRoundRobinDelayDynamicBlockRingBuffer
+    [TestMethod]
+    public void PartitionedRoundRobinDelayDynamicBlockRingBuffer_EnqueueDequeue()
+    {
+        int delayInMilliseconds = 1000;
+        ulong value = 5UL;
+        uint blockSize = sizeof(ulong);
+        uint capacity = 10u;
+        PartitionedRoundRobinDelayDynamicBlockRingBuffer ringBuffer = new PartitionedRoundRobinDelayDynamicBlockRingBuffer(2U, blockSize, capacity, Convert.ToUInt32(delayInMilliseconds), null);
+        
+        Span<byte> buffer = stackalloc byte[8];
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+        
+        Assert.IsTrue(ringBuffer.TryEnqueue(0,buffer), "Enqueue should be successful.");
+        Assert.IsTrue(ringBuffer.TryEnqueue(1,buffer), "Enqueue should be successful.");
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //reset
+        Assert.IsFalse(ringBuffer.TryDequeue(buffer), "Dequeue should be unsuccessful.");
+        Thread.Sleep(delayInMilliseconds + 1); //Wait delay time
+        Assert.IsTrue(ringBuffer.TryDequeue(buffer), "Dequeue should be successful.");
+        Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+        Assert.IsTrue(ringBuffer.TryDequeue(buffer), "Dequeue should be successful.");
+        Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+    }
+    #endregion
+    
     #region DelayDynamicBlockSingleProducerRingBuffer
     [TestMethod]
     public void DelayDynamicBlockSingleProducerRingBuffer_EnqueueDequeue()

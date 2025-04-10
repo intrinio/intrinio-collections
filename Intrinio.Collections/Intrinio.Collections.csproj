@@ -12,7 +12,7 @@
         <PackageTags>collections high-performance real-time concurrency</PackageTags>
         <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
         <PackageReadmeFile>README.md</PackageReadmeFile>
-        <Version>3.0.0</Version>
+        <Version>3.1.0</Version>
     </PropertyGroup>
 
     <PropertyGroup>
