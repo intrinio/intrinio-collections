@@ -109,8 +109,8 @@ public class PartitionedRoundRobinDynamicBlockRingBuffer : IPartitionedDynamicBl
         _readIndex = 0UL;
         this._blockSize = blockSize;
         _eachBlockCapacity = eachQueueBlockCapacity;
-        _totalBlockCapacity = Convert.ToUInt64(eachQueueBlockCapacity) * this._concurrency;
         this._concurrency = concurrency;
+        _totalBlockCapacity = Convert.ToUInt64(eachQueueBlockCapacity) * this._concurrency;
         _queues = new DynamicBlockSingleProducerRingBuffer[concurrency];
         for (int i = 0; i < concurrency; i++)
             _queues[i] = new DynamicBlockSingleProducerRingBuffer(blockSize, eachQueueBlockCapacity);

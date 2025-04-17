@@ -108,8 +108,8 @@ public class PartitionedRoundRobinRingBuffer : IPartitionedRingBuffer
         _readIndex = 0UL;
         this._blockSize = blockSize;
         _eachBlockCapacity = eachQueueBlockCapacity;
-        _totalBlockCapacity = Convert.ToUInt64(eachQueueBlockCapacity) * this._concurrency;
         this._concurrency = concurrency;
+        _totalBlockCapacity = Convert.ToUInt64(eachQueueBlockCapacity) * this._concurrency;
         _queues = new SingleProducerRingBuffer[concurrency];
         for (int i = 0; i < concurrency; i++)
             _queues[i] = new SingleProducerRingBuffer(blockSize, eachQueueBlockCapacity);
