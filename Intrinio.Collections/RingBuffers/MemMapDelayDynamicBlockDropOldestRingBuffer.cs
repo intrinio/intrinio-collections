@@ -143,20 +143,38 @@ public class MemMapDelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffe
     
     public void Dispose()
     {
-        _dataWriteAccessor.Flush();
-        _dataWriteAccessor.Dispose();
-        _dataReadAccessor.Dispose();
-        _data.Dispose();
+        GulpObjectDisposedException(() =>
+        {
+            _dataWriteAccessor.Flush();
+            _dataWriteAccessor.Dispose();
+            _dataReadAccessor.Dispose();
+            _data.Dispose(); 
+        });
         
-        _blockLengthsWriteAccessor.Flush();
-        _blockLengthsWriteAccessor.Dispose();
-        _blockLengthsReadAccessor.Dispose();
-        _blockLengthsData.Dispose();
+        GulpObjectDisposedException(() =>
+        {
+            _blockLengthsWriteAccessor.Flush();
+            _blockLengthsWriteAccessor.Dispose();
+            _blockLengthsReadAccessor.Dispose();
+            _blockLengthsData.Dispose(); 
+        });
     
-        _enqueueTimesWriteAccessor.Flush();
-        _enqueueTimesWriteAccessor.Dispose();
-        _enqueueTimesReadAccessor.Dispose();
-        _enqueueTimesData.Dispose();
+        GulpObjectDisposedException(() =>
+        {
+            _enqueueTimesWriteAccessor.Flush();
+            _enqueueTimesWriteAccessor.Dispose();
+            _enqueueTimesReadAccessor.Dispose();
+            _enqueueTimesData.Dispose();
+        });
+    }
+
+    private static void GulpObjectDisposedException(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (ObjectDisposedException) { }
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -182,8 +200,15 @@ public class MemMapDelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffe
         ulong nextDesiredPageIndex = GetPageIndex(_blockNextWriteIndex, _blockSize, _dataPageSize);
         if (nextDesiredPageIndex != _dataWritePageIndex)
         {
-            _dataWriteAccessor.Flush();
-            _dataWriteAccessor.Dispose();
+            try
+            {
+                _dataWriteAccessor.Flush();
+                _dataWriteAccessor.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+                //gulping the exception here because it's not really an issue.  The accessor is being recreated on the next call to this method, and was flushed on disposal.
+            }
             _dataWriteAccessor = _data.CreateViewAccessor(Convert.ToInt64(GetPageStartingIndex(nextDesiredPageIndex, _dataPageSize)), Convert.ToInt64(_dataPageSize), MemoryMappedFileAccess.ReadWrite);
             _dataWritePageIndex = nextDesiredPageIndex;
         }
@@ -196,8 +221,15 @@ public class MemMapDelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffe
         ulong nextDesiredPageIndex = GetPageIndex(_blockNextWriteIndex, sizeof(int), _blockLengthsPageSize);
         if (nextDesiredPageIndex != _blockLengthsWritePageIndex)
         {
-            _blockLengthsWriteAccessor.Flush();
-            _blockLengthsWriteAccessor.Dispose();
+            try
+            {
+                _blockLengthsWriteAccessor.Flush();
+                _blockLengthsWriteAccessor.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+                //gulping the exception here because it's not really an issue.  The accessor is being recreated on the next call to this method, and was flushed on disposal.
+            }
             _blockLengthsWriteAccessor = _blockLengthsData.CreateViewAccessor(Convert.ToInt64(GetPageStartingIndex(nextDesiredPageIndex, _blockLengthsPageSize)), Convert.ToInt64(_blockLengthsPageSize), MemoryMappedFileAccess.ReadWrite);
             _blockLengthsWritePageIndex = nextDesiredPageIndex;
         }
@@ -210,8 +242,15 @@ public class MemMapDelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffe
         ulong nextDesiredPageIndex = GetPageIndex(_blockNextWriteIndex, sizeof(long), _enqueueTimesPageSize);
         if (nextDesiredPageIndex != _enqueueTimesWritePageIndex)
         {
-            _enqueueTimesWriteAccessor.Flush();
-            _enqueueTimesWriteAccessor.Dispose();
+            try
+            {
+                _enqueueTimesWriteAccessor.Flush();
+                _enqueueTimesWriteAccessor.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+                //gulping the exception here because it's not really an issue.  The accessor is being recreated on the next call to this method, and was flushed on disposal.
+            }
             _enqueueTimesWriteAccessor = _enqueueTimesData.CreateViewAccessor(Convert.ToInt64(GetPageStartingIndex(nextDesiredPageIndex, _enqueueTimesPageSize)), Convert.ToInt64(_enqueueTimesPageSize), MemoryMappedFileAccess.ReadWrite);
             _enqueueTimesWritePageIndex = nextDesiredPageIndex;
         }
@@ -224,7 +263,14 @@ public class MemMapDelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffe
         ulong nextDesiredPageIndex = GetPageIndex(_blockNextReadIndex, _blockSize, _dataPageSize);
         if (nextDesiredPageIndex != _dataReadPageIndex)
         {
-            _dataReadAccessor.Dispose();
+            try
+            {
+                _dataReadAccessor.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+                //gulping the exception here because it's not really an issue.  The accessor is being recreated on the next call to this method, and was flushed on disposal.
+            }
             _dataReadAccessor = _data.CreateViewAccessor(Convert.ToInt64(GetPageStartingIndex(nextDesiredPageIndex, _dataPageSize)), Convert.ToInt64(_dataPageSize), MemoryMappedFileAccess.Read);
             _dataReadPageIndex = nextDesiredPageIndex;
         }
@@ -237,8 +283,14 @@ public class MemMapDelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffe
         ulong nextDesiredPageIndex = GetPageIndex(_blockNextReadIndex, sizeof(int), _blockLengthsPageSize);
         if (nextDesiredPageIndex != _blockLengthsReadPageIndex)
         {
-            _blockLengthsReadAccessor.Flush();
-            _blockLengthsReadAccessor.Dispose();
+            try
+            {
+                _blockLengthsReadAccessor.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+                //gulping the exception here because it's not really an issue.  The accessor is being recreated on the next call to this method, and was flushed on disposal.
+            }
             _blockLengthsReadAccessor = _blockLengthsData.CreateViewAccessor(Convert.ToInt64(GetPageStartingIndex(nextDesiredPageIndex, _blockLengthsPageSize)), Convert.ToInt64(_blockLengthsPageSize), MemoryMappedFileAccess.Read);
             _blockLengthsReadPageIndex = nextDesiredPageIndex;
         }
@@ -251,8 +303,14 @@ public class MemMapDelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffe
         ulong nextDesiredPageIndex = GetPageIndex(_blockNextReadIndex, sizeof(long), _enqueueTimesPageSize);
         if (nextDesiredPageIndex != _enqueueTimesReadPageIndex)
         {
-            _enqueueTimesReadAccessor.Flush();
-            _enqueueTimesReadAccessor.Dispose();
+            try
+            {
+                _enqueueTimesReadAccessor.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+                //gulping the exception here because it's not really an issue.  The accessor is being recreated on the next call to this method, and was flushed on disposal.
+            }
             _enqueueTimesReadAccessor = _enqueueTimesData.CreateViewAccessor(Convert.ToInt64(GetPageStartingIndex(nextDesiredPageIndex, _enqueueTimesPageSize)), Convert.ToInt64(_enqueueTimesPageSize), MemoryMappedFileAccess.Read);
             _enqueueTimesReadPageIndex = nextDesiredPageIndex;
         }
