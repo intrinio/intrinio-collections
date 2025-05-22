@@ -811,4 +811,45 @@ public class RingBuffersTests
     }
     
     #endregion //MemMapDelayDynamicBlockDropOldestRingBuffer
+
+    #region DynamicBlockSingleProducerRingBuffer
+
+    [TestMethod]
+    public void DynamicBlockSingleProducerRingBuffer_EnqueueDequeue()
+    {
+        ulong                                value      = 5UL;
+        uint                                 blockSize  = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
+        uint                                 capacity   = 10u;
+        DynamicBlockSingleProducerRingBuffer ringBuffer = new DynamicBlockSingleProducerRingBuffer(blockSize, capacity);
+        
+        Span<byte> buffer = stackalloc byte[Convert.ToInt32(blockSize)];
+        Span<byte> trimmedBuffer = buffer;
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+        
+        Assert.IsTrue(ringBuffer.TryEnqueue(buffer.Slice(0, sizeof(ulong))), "Enqueue should be successful.");
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //clear buffer state
+        Assert.IsTrue(ringBuffer.TryDequeue(buffer, out trimmedBuffer), "Dequeue should be successful.");
+        Assert.AreEqual(value,         BinaryPrimitives.ReadUInt64BigEndian(trimmedBuffer), "Dequeued value should be equal to the original value.");
+        Assert.AreEqual(sizeof(ulong), trimmedBuffer.Length,"Trimmed length should be equal to the original length.");
+        Assert.AreNotEqual(blockSize, Convert.ToUInt32(trimmedBuffer.Length), "Trimmed length should not be equal to the block size if the input was sliced smaller.");
+    }
+    
+    [TestMethod]
+    public void DynamicBlockSingleProducerRingBuffer_ZeroUsedLength()
+    {
+        ulong                                value      = 5UL;
+        uint                                 blockSize  = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
+        uint                                 capacity   = 10u;
+        DynamicBlockSingleProducerRingBuffer ringBuffer = new DynamicBlockSingleProducerRingBuffer(blockSize, capacity);
+        
+        Span<byte> buffer        = stackalloc byte[Convert.ToInt32(blockSize)];
+        Span<byte> trimmedBuffer = buffer;
+        
+        Assert.IsTrue(ringBuffer.TryEnqueue(buffer.Slice(0, 0)), "Enqueue should be successful.");
+        Assert.IsTrue(ringBuffer.TryDequeue(buffer, out trimmedBuffer), "Dequeue should be successful.");
+        Assert.AreEqual(0, trimmedBuffer.Length, "Trimmed length should be equal to the original length.");
+        Assert.AreNotEqual(blockSize, Convert.ToUInt32(trimmedBuffer.Length), "Trimmed length should not be equal to the block size if the input was sliced smaller.");
+    }
+
+    #endregion //DynamicBlockSingleProducerRingBuffer
 }
