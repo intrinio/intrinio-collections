@@ -428,6 +428,239 @@ public class RingBuffersTests
             File.Delete(file);
     }
     
+    [TestMethod]
+    public void MemMapDelayDynamicBlockSingleProducerRingBuffer_PageSizeAlignedWithRequiredFileSize()
+    {
+        int   delayInMilliseconds = 1000;
+        ulong value               = 5UL;
+        uint  blockSize           = 117u;
+        ulong pageSize            = blockSize << 4;
+        ulong capacity            = pageSize * 10u;
+        
+        string                                                file       = Path.Combine(System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockSingleProducerRingBuffer_PageSizeAlignedWithRequiredFileSize)}.bin");
+        using MemMapDelayDynamicBlockSingleProducerRingBuffer ringBuffer = new MemMapDelayDynamicBlockSingleProducerRingBuffer(Convert.ToUInt32(delayInMilliseconds), blockSize, capacity, System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockSingleProducerRingBuffer_EnqueueDequeue)}.bin", null, pageSize);
+        
+        bool failed  = false;
+
+        try
+        {
+            Random     ran                   = new Random();
+            Thread.Sleep(ran.Next(0, 5000));
+            Span<byte> buffer                = stackalloc byte[Convert.ToInt32(blockSize)];
+            BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+            for (ulong i = 0; i < capacity; i++)
+            {
+                ringBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+            }
+
+            while (ringBuffer.TryDequeue(buffer))
+            {
+                Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+            }
+                    
+            for (ulong i = 0; i < capacity; i++)
+            {
+                ringBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+            }
+                    
+            while (ringBuffer.TryDequeue(buffer))
+            {
+                Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+            }
+        }
+        catch(Exception e)
+        {
+            failed = true;
+        }
+
+        try
+        {
+            if (File.Exists(file))
+                File.Delete(file);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        
+        if (failed)
+            Assert.Fail("Thread failed.");
+    }
+    
+    [TestMethod]
+    public void MemMapDelayDynamicBlockSingleProducerRingBuffer_PageSizeNotAlignedWithRequiredFileSize()
+    {
+        int   delayInMilliseconds = 1000;
+        ulong value               = 5UL;
+        uint  blockSize           = 117u;
+        ulong pageSize            = blockSize << 4;
+        ulong capacity            = pageSize * 10u + 1;
+        
+        string                                                file       = Path.Combine(System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockSingleProducerRingBuffer_PageSizeNotAlignedWithRequiredFileSize)}.bin");
+        using MemMapDelayDynamicBlockSingleProducerRingBuffer ringBuffer = new MemMapDelayDynamicBlockSingleProducerRingBuffer(Convert.ToUInt32(delayInMilliseconds), blockSize, capacity, System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockSingleProducerRingBuffer_EnqueueDequeue)}.bin", null, pageSize);
+        
+        bool failed  = false;
+
+        try
+        {
+            Random     ran                   = new Random();
+            Thread.Sleep(ran.Next(0, 5000));
+            Span<byte> buffer                = stackalloc byte[Convert.ToInt32(blockSize)];
+            BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+            for (ulong i = 0; i < capacity; i++)
+            {
+                ringBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+            }
+
+            while (ringBuffer.TryDequeue(buffer))
+            {
+                Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+            }
+                    
+            for (ulong i = 0; i < capacity; i++)
+            {
+                ringBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+            }
+                    
+            while (ringBuffer.TryDequeue(buffer))
+            {
+                Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+            }
+        }
+        catch(Exception e)
+        {
+            failed = true;
+        }
+
+        try
+        {
+            if (File.Exists(file))
+                File.Delete(file);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        
+        if (failed)
+            Assert.Fail("Thread failed.");
+    }
+    
+    [TestMethod]
+    public void MemMapDelayDynamicBlockSingleProducerRingBuffer_MultipleThreads()
+    {
+        int   threadCount         = 32;
+        int   delayInMilliseconds = 1000;
+        ulong value               = 5UL;
+        uint  blockSize           = 117u;
+        ulong pageSize            = blockSize * 16;
+        ulong capacity            = pageSize * 100u + 1;
+        
+        string                                                file       = Path.Combine(System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockSingleProducerRingBuffer_MultipleThreads)}.bin");
+        using MemMapDelayDynamicBlockSingleProducerRingBuffer ringBuffer = new MemMapDelayDynamicBlockSingleProducerRingBuffer(Convert.ToUInt32(delayInMilliseconds), blockSize, capacity, System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockSingleProducerRingBuffer_EnqueueDequeue)}.bin", null, pageSize);
+        
+        Thread[] threads = new Thread[threadCount];
+        bool     failed  = false;
+        int i = 0;
+
+        threads[i] = new Thread(o =>
+        {
+            try
+            {
+                Random     ran                   = new Random();
+                Thread.Sleep(ran.Next(0, 100));
+                var        threadLocalRingBuffer = (MemMapDelayDynamicBlockSingleProducerRingBuffer)o;
+                Span<byte> buffer                = stackalloc byte[Convert.ToInt32(blockSize)];
+                BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+                for (ulong i = 0; i < capacity; i++)
+                {
+                    threadLocalRingBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+                }
+
+                while (threadLocalRingBuffer.TryDequeue(buffer))
+                {
+                    Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+                }
+                    
+                for (ulong i = 0; i < capacity; i++)
+                {
+                    threadLocalRingBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+                }
+                    
+                while (threadLocalRingBuffer.TryDequeue(buffer))
+                {
+                    Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+                }
+            }
+            catch(Exception e)
+            {
+                failed = true;
+            }
+        });
+        threads[i].Start(ringBuffer);
+
+        ++i;
+        
+        for (;i < threads.Length; i++)
+        {
+            threads[i] = new Thread(o =>
+            {
+                try
+                {
+                    Random     ran                   = new Random();
+                    Thread.Sleep(ran.Next(0, 100));
+                    var        threadLocalRingBuffer = (MemMapDelayDynamicBlockSingleProducerRingBuffer)o;
+                    Span<byte> buffer                = stackalloc byte[Convert.ToInt32(blockSize)];
+                    BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+                    
+                    while (threadLocalRingBuffer.TryDequeue(buffer))
+                    {
+                        Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+                    }
+                    
+                    while (threadLocalRingBuffer.TryDequeue(buffer))
+                    {
+                        Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+                    }
+                }
+                catch(Exception e)
+                {
+                    failed = true;
+                }
+            });
+            threads[i].Start(ringBuffer);
+        }
+
+        //Cleanup
+        for (i = 0; i < threads.Length; i++)
+        {
+            try
+            {
+                threads[i].Join();
+            }
+            catch (Exception e)
+            {
+                
+            }
+        }
+
+        try
+        {
+            if (File.Exists(file))
+                File.Delete(file);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        
+        if (failed)
+            Assert.Fail("Thread failed.");
+    }
+    
     #endregion //MemMapDelayDynamicBlockSingleProducerRingBuffer
     
     #region MemMapDelayDynamicBlockRingBuffer
@@ -619,6 +852,210 @@ public class RingBuffersTests
             File.Delete(file);
     }
     
+    [TestMethod]
+    public void MemMapDelayDynamicBlockRingBuffer_PageSizeAlignedWithRequiredFileSize()
+    {
+        int   delayInMilliseconds = 1000;
+        ulong value               = 5UL;
+        uint  blockSize           = 117u;
+        ulong pageSize            = blockSize << 4;
+        ulong capacity            = pageSize * 10u;
+        
+        string                                  file       = Path.Combine(System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockRingBuffer_PageSizeAlignedWithRequiredFileSize)}.bin");
+        using MemMapDelayDynamicBlockRingBuffer ringBuffer = new MemMapDelayDynamicBlockRingBuffer(Convert.ToUInt32(delayInMilliseconds), blockSize, capacity, System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockSingleProducerRingBuffer_EnqueueDequeue)}.bin", null, pageSize);
+        
+        bool failed  = false;
+
+        try
+        {
+            Random     ran                   = new Random();
+            Thread.Sleep(ran.Next(0, 5000));
+            Span<byte> buffer                = stackalloc byte[Convert.ToInt32(blockSize)];
+            BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+            for (ulong i = 0; i < capacity; i++)
+            {
+                ringBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+            }
+
+            while (ringBuffer.TryDequeue(buffer))
+            {
+                Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+            }
+                    
+            for (ulong i = 0; i < capacity; i++)
+            {
+                ringBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+            }
+                    
+            while (ringBuffer.TryDequeue(buffer))
+            {
+                Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+            }
+        }
+        catch(Exception e)
+        {
+            failed = true;
+        }
+
+        try
+        {
+            if (File.Exists(file))
+                File.Delete(file);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        
+        if (failed)
+            Assert.Fail("Thread failed.");
+    }
+    
+    [TestMethod]
+    public void MemMapDelayDynamicBlockRingBuffer_PageSizeNotAlignedWithRequiredFileSize()
+    {
+        int   delayInMilliseconds = 1000;
+        ulong value               = 5UL;
+        uint  blockSize           = 117u;
+        ulong pageSize            = blockSize << 4;
+        ulong capacity            = pageSize * 10u + 1;
+        
+        string                                  file       = Path.Combine(System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockRingBuffer_PageSizeNotAlignedWithRequiredFileSize)}.bin");
+        using MemMapDelayDynamicBlockRingBuffer ringBuffer = new MemMapDelayDynamicBlockRingBuffer(Convert.ToUInt32(delayInMilliseconds), blockSize, capacity, System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockSingleProducerRingBuffer_EnqueueDequeue)}.bin", null, pageSize);
+        
+        bool failed  = false;
+
+        try
+        {
+            Random     ran                   = new Random();
+            Thread.Sleep(ran.Next(0, 5000));
+            Span<byte> buffer                = stackalloc byte[Convert.ToInt32(blockSize)];
+            BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+            for (ulong i = 0; i < capacity; i++)
+            {
+                ringBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+            }
+
+            while (ringBuffer.TryDequeue(buffer))
+            {
+                Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+            }
+                    
+            for (ulong i = 0; i < capacity; i++)
+            {
+                ringBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+            }
+                    
+            while (ringBuffer.TryDequeue(buffer))
+            {
+                Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+            }
+        }
+        catch(Exception e)
+        {
+            failed = true;
+        }
+
+        try
+        {
+            if (File.Exists(file))
+                File.Delete(file);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        
+        if (failed)
+            Assert.Fail("Thread failed.");
+    }
+    
+    [TestMethod]
+    public void MemMapDelayDynamicBlockRingBuffer_MultipleThreads()
+    {
+        int   threadCount         = 32;
+        int   delayInMilliseconds = 1000;
+        ulong value               = 5UL;
+        uint  blockSize           = 117u;
+        ulong pageSize            = blockSize * 16;
+        ulong capacity            = pageSize * 100u + 1;
+        
+        string                                  file       = Path.Combine(System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockRingBuffer_MultipleThreads)}.bin");
+        using MemMapDelayDynamicBlockRingBuffer ringBuffer = new MemMapDelayDynamicBlockRingBuffer(Convert.ToUInt32(delayInMilliseconds), blockSize, capacity, System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockSingleProducerRingBuffer_EnqueueDequeue)}.bin", null, pageSize);
+        
+        Thread[] threads = new Thread[threadCount];
+        bool     failed  = false;
+        int i = 0;
+
+        for (;i < threads.Length; i++)
+        {
+            threads[i] = new Thread(o =>
+            {
+                try
+                {
+                    Random     ran                   = new Random();
+                    Thread.Sleep(ran.Next(0, 100));
+                    var        threadLocalRingBuffer = (MemMapDelayDynamicBlockRingBuffer)o;
+                    Span<byte> buffer                = stackalloc byte[Convert.ToInt32(blockSize)];
+                    BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+                    for (ulong i = 0; i < capacity; i++)
+                    {
+                        threadLocalRingBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+                    }
+
+                    while (threadLocalRingBuffer.TryDequeue(buffer))
+                    {
+                        Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+                    }
+                    
+                    for (ulong i = 0; i < capacity; i++)
+                    {
+                        threadLocalRingBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+                    }
+                    
+                    while (threadLocalRingBuffer.TryDequeue(buffer))
+                    {
+                        Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+                    }
+                }
+                catch(Exception e)
+                {
+                    failed = true;
+                }
+            });
+            threads[i].Start(ringBuffer);
+        }
+
+        //Cleanup
+        for (i = 0; i < threads.Length; i++)
+        {
+            try
+            {
+                threads[i].Join();
+            }
+            catch (Exception e)
+            {
+                
+            }
+        }
+
+        try
+        {
+            if (File.Exists(file))
+                File.Delete(file);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        
+        if (failed)
+            Assert.Fail("Thread failed.");
+    }
+    
     #endregion //MemMapDelayDynamicBlockRingBuffer
     
     #region MemMapDelayDynamicBlockDropOldestRingBuffer
@@ -808,6 +1245,210 @@ public class RingBuffersTests
         
         if (File.Exists(file))
             File.Delete(file);
+    }
+    
+    [TestMethod]
+    public void MemMapDelayDynamicBlockDropOldestRingBuffer_PageSizeAlignedWithRequiredFileSize()
+    {
+        int   delayInMilliseconds = 1000;
+        ulong value               = 5UL;
+        uint  blockSize           = 117u;
+        ulong pageSize            = blockSize << 4;
+        ulong capacity            = pageSize * 10u;
+        
+        string                                            file       = Path.Combine(System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockDropOldestRingBuffer_PageSizeAlignedWithRequiredFileSize)}.bin");
+        using MemMapDelayDynamicBlockDropOldestRingBuffer ringBuffer = new MemMapDelayDynamicBlockDropOldestRingBuffer(Convert.ToUInt32(delayInMilliseconds), blockSize, capacity, System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockSingleProducerRingBuffer_EnqueueDequeue)}.bin", null, pageSize);
+        
+        bool failed  = false;
+
+        try
+        {
+            Random     ran                   = new Random();
+            Thread.Sleep(ran.Next(0, 5000));
+            Span<byte> buffer                = stackalloc byte[Convert.ToInt32(blockSize)];
+            BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+            for (ulong i = 0; i < capacity; i++)
+            {
+                ringBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+            }
+
+            while (ringBuffer.TryDequeue(buffer))
+            {
+                Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+            }
+                    
+            for (ulong i = 0; i < capacity; i++)
+            {
+                ringBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+            }
+                    
+            while (ringBuffer.TryDequeue(buffer))
+            {
+                Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+            }
+        }
+        catch(Exception e)
+        {
+            failed = true;
+        }
+
+        try
+        {
+            if (File.Exists(file))
+                File.Delete(file);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        
+        if (failed)
+            Assert.Fail("Thread failed.");
+    }
+    
+    [TestMethod]
+    public void MemMapDelayDynamicBlockDropOldestRingBuffer_PageSizeNotAlignedWithRequiredFileSize()
+    {
+        int   delayInMilliseconds = 1000;
+        ulong value               = 5UL;
+        uint  blockSize           = 117u;
+        ulong pageSize            = blockSize << 4;
+        ulong capacity            = pageSize * 10u + 1;
+        
+        string                                            file       = Path.Combine(System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockDropOldestRingBuffer_PageSizeNotAlignedWithRequiredFileSize)}.bin");
+        using MemMapDelayDynamicBlockDropOldestRingBuffer ringBuffer = new MemMapDelayDynamicBlockDropOldestRingBuffer(Convert.ToUInt32(delayInMilliseconds), blockSize, capacity, System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockSingleProducerRingBuffer_EnqueueDequeue)}.bin", null, pageSize);
+        
+        bool failed  = false;
+
+        try
+        {
+            Random     ran                   = new Random();
+            Thread.Sleep(ran.Next(0, 5000));
+            Span<byte> buffer                = stackalloc byte[Convert.ToInt32(blockSize)];
+            BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+            for (ulong i = 0; i < capacity; i++)
+            {
+                ringBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+            }
+
+            while (ringBuffer.TryDequeue(buffer))
+            {
+                Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+            }
+                    
+            for (ulong i = 0; i < capacity; i++)
+            {
+                ringBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+            }
+                    
+            while (ringBuffer.TryDequeue(buffer))
+            {
+                Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+            }
+        }
+        catch(Exception e)
+        {
+            failed = true;
+        }
+
+        try
+        {
+            if (File.Exists(file))
+                File.Delete(file);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        
+        if (failed)
+            Assert.Fail("Thread failed.");
+    }
+    
+    [TestMethod]
+    public void MemMapDelayDynamicBlockDropOldestRingBuffer_MultipleThreads()
+    {
+        int   threadCount         = 32;
+        int   delayInMilliseconds = 1000;
+        ulong value               = 5UL;
+        uint  blockSize           = 117u;
+        ulong pageSize            = blockSize * 16;
+        ulong capacity            = pageSize * 100u + 1;
+        
+        string                                            file       = Path.Combine(System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockDropOldestRingBuffer_MultipleThreads)}.bin");
+        using MemMapDelayDynamicBlockDropOldestRingBuffer ringBuffer = new MemMapDelayDynamicBlockDropOldestRingBuffer(Convert.ToUInt32(delayInMilliseconds), blockSize, capacity, System.IO.Path.GetTempPath(), $"{nameof(MemMapDelayDynamicBlockSingleProducerRingBuffer_EnqueueDequeue)}.bin", null, pageSize);
+        
+        Thread[] threads = new Thread[threadCount];
+        bool     failed  = false;
+        int i = 0;
+
+        for (;i < threads.Length; i++)
+        {
+            threads[i] = new Thread(o =>
+            {
+                try
+                {
+                    Random     ran                   = new Random();
+                    Thread.Sleep(ran.Next(0, 100));
+                    var        threadLocalRingBuffer = (MemMapDelayDynamicBlockDropOldestRingBuffer)o;
+                    Span<byte> buffer                = stackalloc byte[Convert.ToInt32(blockSize)];
+                    BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+                    for (ulong i = 0; i < capacity; i++)
+                    {
+                        threadLocalRingBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+                    }
+
+                    while (threadLocalRingBuffer.TryDequeue(buffer))
+                    {
+                        Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+                    }
+                    
+                    for (ulong i = 0; i < capacity; i++)
+                    {
+                        threadLocalRingBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+                    }
+                    
+                    while (threadLocalRingBuffer.TryDequeue(buffer))
+                    {
+                        Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+                    }
+                }
+                catch(Exception e)
+                {
+                    failed = true;
+                }
+            });
+            threads[i].Start(ringBuffer);
+        }
+
+        //Cleanup
+        for (i = 0; i < threads.Length; i++)
+        {
+            try
+            {
+                threads[i].Join();
+            }
+            catch (Exception e)
+            {
+                
+            }
+        }
+
+        try
+        {
+            if (File.Exists(file))
+                File.Delete(file);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        
+        if (failed)
+            Assert.Fail("Thread failed.");
     }
     
     #endregion //MemMapDelayDynamicBlockDropOldestRingBuffer
