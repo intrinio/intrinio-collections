@@ -82,9 +82,21 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
     /// <param name="fileDirectory">The directory in which the memory mapped files will reside.</param>
     /// <param name="fileNamePrefix">The prefix for the names of the files.</param>
     /// <param name="stopwatch">The stopwatch to use for comparison of elapsed milliseconds at time of dequeue to the elapsed milliseconds at the time a partition block was enqueued.</param>
-    /// <param name="targetPageSize">The preferred page size for memory swapping. This size, or something close will be used.</param>
+    /// <param name="targetPageSize">The target page size to use for the memory-mapped files.  This will be increased to the nearest multiple of blockSize.</param>
     public MemMapDelayDynamicBlockSingleProducerRingBuffer(uint delayMilliseconds, uint blockSize, ulong blockCapacity, string fileDirectory, string fileNamePrefix, System.Diagnostics.Stopwatch? stopwatch = default, ulong targetPageSize = DefaultTargetPageSize)
     {
+        if (blockSize == 0u)
+            throw new ArgumentException($"Argument blockSize must not be zero.", nameof(blockSize));
+        
+        if (blockCapacity == 0UL)
+            throw new ArgumentException($"Argument blockCapacity must not be zero.", nameof(blockSize));
+        
+        if (targetPageSize == 0UL)
+            throw new ArgumentException($"Argument targetPageSize must not be zero.", nameof(blockSize));
+        
+        if (blockSize > targetPageSize)
+            throw new ArgumentException($"Argument blockSize must be less than {nameof(targetPageSize)}", nameof(blockSize));
+        
         _blockSize = blockSize;
         _blockCapacity = blockCapacity;
         _delayMilliseconds = Convert.ToInt64(delayMilliseconds);
@@ -101,12 +113,30 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         _enqueueTimesWritePageIndex = 0UL;
         _enqueueTimesReadPageIndex = 0UL;
         
-        if (blockSize > targetPageSize)
-            throw new ArgumentException($"Argument blockSize must be less than {nameof(targetPageSize)}", nameof(blockSize));
+        ulong dataPageSizeBeforeModulo = Math.Min(targetPageSize, Convert.ToUInt64(blockSize) * _blockCapacity);
+        _dataPageSize = dataPageSizeBeforeModulo % Convert.ToUInt64(blockSize) == 0UL 
+            ? dataPageSizeBeforeModulo 
+            : dataPageSizeBeforeModulo + Convert.ToUInt64(blockSize) - (dataPageSizeBeforeModulo % Convert.ToUInt64(blockSize));
+        ulong dataFileSize = (blockCapacity * blockSize) % _dataPageSize == 0UL 
+            ? (blockCapacity * blockSize) 
+            : (blockCapacity * blockSize) + _dataPageSize - ((blockCapacity * blockSize) % _dataPageSize);
         
-        _dataPageSize = (Math.Min(targetPageSize, Convert.ToUInt64(blockSize) * _blockCapacity) / Convert.ToUInt64(blockSize)) * Convert.ToUInt64(blockSize);
-        _blockLengthsPageSize = (Math.Min(targetPageSize, Convert.ToUInt64(sizeof(int)) * _blockCapacity) / Convert.ToUInt64(sizeof(int))) * Convert.ToUInt64(sizeof(int));
-        _enqueueTimesPageSize = (Math.Min(targetPageSize, Convert.ToUInt64(sizeof(long)) * _blockCapacity) / Convert.ToUInt64(sizeof(long))) * Convert.ToUInt64(sizeof(long));
+        ulong blockLengthsPageSizeBeforeModulo = Math.Min(targetPageSize, Convert.ToUInt64(sizeof(int))  * _blockCapacity);
+        _blockLengthsPageSize = blockLengthsPageSizeBeforeModulo % Convert.ToUInt64(sizeof(int)) == 0UL 
+            ? blockLengthsPageSizeBeforeModulo 
+            : blockLengthsPageSizeBeforeModulo + Convert.ToUInt64(sizeof(int)) - (blockLengthsPageSizeBeforeModulo % Convert.ToUInt64(sizeof(int)));
+        ulong blockLengthsFileSize = (blockCapacity * sizeof(int)) % _blockLengthsPageSize == 0UL 
+            ? (blockCapacity * sizeof(int)) 
+            : (blockCapacity * sizeof(int)) + _blockLengthsPageSize - ((blockCapacity * sizeof(int)) % _blockLengthsPageSize);
+        
+        ulong enqueueTimesPageSizeBeforeModulo = Math.Min(targetPageSize, Convert.ToUInt64(sizeof(long)) * _blockCapacity);
+        _enqueueTimesPageSize = enqueueTimesPageSizeBeforeModulo % Convert.ToUInt64(sizeof(long)) == 0UL 
+            ? enqueueTimesPageSizeBeforeModulo 
+            : enqueueTimesPageSizeBeforeModulo + Convert.ToUInt64(sizeof(long)) - (enqueueTimesPageSizeBeforeModulo % Convert.ToUInt64(sizeof(long)));
+        ulong enqueueTimesFileSize = (blockCapacity * sizeof(long)) % _enqueueTimesPageSize == 0UL 
+            ? (blockCapacity * sizeof(long)) 
+            : (blockCapacity * sizeof(long)) + _enqueueTimesPageSize - ((blockCapacity * sizeof(long)) % _enqueueTimesPageSize);
+        
         _count = 0u;
         _dropCount = 0UL;
         _readLock = new object();
@@ -117,7 +147,7 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         
         using (var fs = new FileStream(dataFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            fs.SetLength(Convert.ToInt64(blockCapacity) * Convert.ToInt64(blockSize));
+            fs.SetLength(Convert.ToInt64(dataFileSize));
         }
         _data = MemoryMappedFile.CreateFromFile(dataFilePath);
         _dataWriteAccessor = _data.CreateViewAccessor(0, Convert.ToInt64(_dataPageSize), MemoryMappedFileAccess.ReadWrite);
@@ -125,7 +155,7 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         
         using (var fs = new FileStream(blockLengthsFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            fs.SetLength(Convert.ToInt64(blockCapacity) * Convert.ToInt64(sizeof(int)));
+            fs.SetLength(Convert.ToInt64(blockLengthsFileSize));
         }
         _blockLengthsData = MemoryMappedFile.CreateFromFile(blockLengthsFilePath);
         _blockLengthsWriteAccessor = _blockLengthsData.CreateViewAccessor(0, Convert.ToInt64(_blockLengthsPageSize), MemoryMappedFileAccess.ReadWrite);
@@ -133,7 +163,7 @@ public class MemMapDelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingB
         
         using (var fs = new FileStream(enqueueTimesFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            fs.SetLength(Convert.ToInt64(blockCapacity) * Convert.ToInt64(sizeof(long)));
+            fs.SetLength(Convert.ToInt64(enqueueTimesFileSize));
         }
         _enqueueTimesData = MemoryMappedFile.CreateFromFile(enqueueTimesFilePath);
         _enqueueTimesWriteAccessor = _enqueueTimesData.CreateViewAccessor(0, Convert.ToInt64(_enqueueTimesPageSize), MemoryMappedFileAccess.ReadWrite);
