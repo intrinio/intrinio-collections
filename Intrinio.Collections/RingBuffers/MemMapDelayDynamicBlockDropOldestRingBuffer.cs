@@ -40,8 +40,8 @@ public class MemMapDelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffe
     private readonly System.Diagnostics.Stopwatch _stopwatch;
     private ulong _blockNextReadIndex;
     private ulong _blockNextWriteIndex;
-    private readonly object _readLock;
-    private readonly object _writeLock;
+    private readonly Lock _readLock;
+    private readonly Lock _writeLock;
     private ulong _count;
     private readonly uint _blockSize;
     private readonly ulong _blockCapacity;
@@ -136,10 +136,10 @@ public class MemMapDelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffe
             ? (blockCapacity * sizeof(long)) 
             : (blockCapacity * sizeof(long)) + _enqueueTimesPageSize - ((blockCapacity * sizeof(long)) % _enqueueTimesPageSize);
         
-        _count = 0u;
+        _count     = 0u;
         _dropCount = 0UL;
-        _readLock = new object();
-        _writeLock = new object();
+        _readLock  = new Lock();
+        _writeLock = new Lock();
         
         string dataFilePath = System.IO.Path.Combine(fileDirectory, $"{fileNamePrefix}_Data.bin");
         string blockLengthsFilePath = System.IO.Path.Combine(fileDirectory, $"{fileNamePrefix}_Lengths.bin");
