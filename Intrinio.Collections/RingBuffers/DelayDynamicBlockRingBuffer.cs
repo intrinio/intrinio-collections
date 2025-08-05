@@ -18,8 +18,8 @@ public class DelayDynamicBlockRingBuffer: IDynamicBlockRingBuffer
     private readonly System.Diagnostics.Stopwatch _stopwatch;
     private ulong _blockNextReadIndex;
     private ulong _blockNextWriteIndex;
-    private readonly object _writeLock;
-    private readonly object _readLock;
+    private readonly Lock _writeLock;
+    private readonly Lock _readLock;
     private ulong _count;
     private readonly uint _blockSize;
     private readonly ulong _blockCapacity;
@@ -72,8 +72,8 @@ public class DelayDynamicBlockRingBuffer: IDynamicBlockRingBuffer
         _blockNextWriteIndex = 0u;
         _count = 0u;
         _dropCount = 0UL;
-        _writeLock = new object();
-        _readLock = new object();
+        _writeLock = new Lock();
+        _readLock = new Lock();
         _data = new byte[blockSize * blockCapacity];
     }
 

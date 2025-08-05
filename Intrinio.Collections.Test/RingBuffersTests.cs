@@ -1493,4 +1493,151 @@ public class RingBuffersTests
     }
 
     #endregion //DynamicBlockSingleProducerRingBuffer
+    
+    #region DynamicBlockLargeRingBuffer
+
+    [TestMethod]
+    public void DynamicBlockLargeRingBuffer_EnqueueDequeue()
+    {
+        ulong                       value      = 5UL;
+        uint                        blockSize  = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
+        uint                        capacity   = 10u;
+        DynamicBlockLargeRingBuffer ringBuffer = new DynamicBlockLargeRingBuffer(blockSize, capacity, 10u);
+        
+        Span<byte> buffer = stackalloc byte[Convert.ToInt32(blockSize)];
+        Span<byte> trimmedBuffer = buffer;
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+        
+        Assert.IsTrue(ringBuffer.TryEnqueue(buffer.Slice(0, sizeof(ulong))), "Enqueue should be successful.");
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //clear buffer state
+        Assert.IsTrue(ringBuffer.TryDequeue(buffer, out trimmedBuffer), "Dequeue should be successful.");
+        Assert.AreEqual(value,         BinaryPrimitives.ReadUInt64BigEndian(trimmedBuffer), "Dequeued value should be equal to the original value.");
+        Assert.AreEqual(sizeof(ulong), trimmedBuffer.Length,"Trimmed length should be equal to the original length.");
+        Assert.AreNotEqual(blockSize, Convert.ToUInt32(trimmedBuffer.Length), "Trimmed length should not be equal to the block size if the input was sliced smaller.");
+    }
+    
+    [TestMethod]
+    public void DynamicBlockLargeRingBuffer_ZeroUsedLength()
+    {
+        ulong                       value      = 5UL;
+        uint                        blockSize  = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
+        uint                        capacity   = 10u;
+        DynamicBlockLargeRingBuffer ringBuffer = new DynamicBlockLargeRingBuffer(blockSize, capacity, 10);
+        
+        Span<byte> buffer        = stackalloc byte[Convert.ToInt32(blockSize)];
+        Span<byte> trimmedBuffer = buffer;
+        
+        Assert.IsTrue(ringBuffer.TryEnqueue(buffer.Slice(0, 0)), "Enqueue should be successful.");
+        Assert.IsTrue(ringBuffer.TryDequeue(buffer, out trimmedBuffer), "Dequeue should be successful.");
+        Assert.AreEqual(0, trimmedBuffer.Length, "Trimmed length should be equal to the original length.");
+        Assert.AreNotEqual(blockSize, Convert.ToUInt32(trimmedBuffer.Length), "Trimmed length should not be equal to the block size if the input was sliced smaller.");
+    }
+    
+    [TestMethod]
+    public void DynamicBlockLargeRingBuffer_HalfFull()
+    {
+        ulong                       value               = 5UL;
+        uint                        blockSize           = sizeof(ulong);
+        uint                        capacity            = 10u;
+        uint                        stripeQuantity      = 10u;
+        DynamicBlockLargeRingBuffer ringBuffer          = new DynamicBlockLargeRingBuffer(blockSize, capacity, stripeQuantity);
+        
+        Span<byte> buffer = stackalloc byte[8];
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+        
+        for (int i = 0; i < capacity * stripeQuantity / 2; i++)
+        {
+            Assert.IsTrue(ringBuffer.TryEnqueue(buffer), "Enqueue should be successful.");
+        }
+        
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //reset
+        Assert.IsTrue(ringBuffer.TryDequeue(buffer), "Dequeue should be successful.");
+        Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+        Assert.AreEqual(capacity * stripeQuantity / 2 - 1, ringBuffer.Count, "Queue depth should be equal to half minus one.");
+        
+        
+        for (int i = 0; i < capacity * stripeQuantity / 2 - 1; i++)
+        {
+            Assert.IsTrue(ringBuffer.TryDequeue(buffer), "Dequeue should be successful.");
+        }
+        
+        Assert.AreEqual(0UL, ringBuffer.Count, "Queue depth should be zero.");
+    }
+    
+    [TestMethod]
+    public void DynamicBlockLargeRingBuffer_Full()
+    {
+        ulong                       value               = 5UL;
+        uint                        blockSize           = sizeof(ulong);
+        uint                        capacity            = 10u;
+        uint                        stripeQuantity      = 10u;
+        DynamicBlockLargeRingBuffer ringBuffer          = new DynamicBlockLargeRingBuffer(blockSize, capacity, stripeQuantity);
+        
+        Span<byte> buffer = stackalloc byte[8];
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+        
+        for (int i = 0; i < capacity * stripeQuantity; i++)
+        {
+            Thread.Sleep(1);
+            Assert.IsTrue(ringBuffer.TryEnqueue(buffer), "Enqueue should be successful.");
+        }
+        
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //reset
+        Assert.IsTrue(ringBuffer.TryDequeue(buffer), "Dequeue should be successful.");
+        
+        Assert.AreEqual(capacity * stripeQuantity - 1, ringBuffer.Count, "Queue depth should be equal full.");
+        Assert.IsTrue(ringBuffer.TryDequeue(buffer), "Dequeue should be successful.");
+        Assert.AreEqual(value,                         BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+        Assert.AreEqual(capacity * stripeQuantity - 2, ringBuffer.Count,                             "Queue depth should be equal to full minus one.");
+        
+        
+        for (int i = 0; i < capacity * stripeQuantity - 2; i++)
+        {
+            Assert.IsTrue(ringBuffer.TryDequeue(buffer), "Remaining Dequeues should be successful.");
+        }
+        
+        Assert.AreEqual(0UL, ringBuffer.Count, "Queue depth should be zero.");
+    }
+    
+    [TestMethod]
+    public void DynamicBlockLargeRingBuffer_Overflow()
+    {
+        ulong                       value          = 5UL;
+        uint                        blockSize      = sizeof(ulong);
+        uint                        capacity       = 10u;
+        uint                        stripeQuantity = 10u;
+        DynamicBlockLargeRingBuffer ringBuffer     = new DynamicBlockLargeRingBuffer(blockSize, capacity, stripeQuantity);
+        
+        Span<byte> buffer = stackalloc byte[8];
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+        
+        for (int i = 0; i < capacity * stripeQuantity; i++)
+        {
+            Thread.Sleep(1);
+            Assert.IsTrue(ringBuffer.TryEnqueue(buffer), "Enqueue should be successful.");
+        }
+        
+        for (int i = 0; i < capacity * stripeQuantity; i++)
+        {
+            Thread.Sleep(1);
+            Assert.IsFalse(ringBuffer.TryEnqueue(buffer), "Overflow Enqueue should be unsuccessful.");
+        }
+        
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //reset
+        Assert.AreEqual(capacity * stripeQuantity, ringBuffer.Count,     "Queue depth should be equal full.");
+        Assert.AreEqual(capacity * stripeQuantity, ringBuffer.DropCount, $"Drops should be {capacity}.");
+        Assert.IsTrue(ringBuffer.TryDequeue(buffer), "Dequeue should be successful.");
+        Assert.AreEqual(value,                         BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+        Assert.AreEqual(capacity * stripeQuantity - 1, ringBuffer.Count,                             "Queue depth should be equal to full minus one.");
+        
+        
+        for (int i = 0; i < capacity * stripeQuantity - 1; i++)
+        {
+            Assert.IsTrue(ringBuffer.TryDequeue(buffer), "Remaining Dequeues should be successful.");
+        }
+        
+        Assert.AreEqual(0UL, ringBuffer.Count, "Queue depth should be zero.");
+    }
+
+    #endregion //DynamicBlockLargeRingBuffer
 }
