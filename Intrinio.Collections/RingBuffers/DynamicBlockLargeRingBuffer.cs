@@ -18,8 +18,13 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
     private readonly uint _blockSize;
     private readonly ulong _stripeBlockCapacity;
     private readonly ulong _totalBlockCapacity;
+#if NET9_0_OR_GREATER
     private readonly Lock _readLock;
     private readonly Lock _writeLock;
+#else
+    private readonly object _readLock;
+    private readonly object _writeLock;
+#endif
     
     /// <summary>
     /// The fixed size of each byte block.
@@ -110,8 +115,8 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
         if (stripeCount == 0U)
             throw new ArgumentException($"Argument {nameof(stripeCount)} must be greater than zero.", nameof(stripeCount));
         
-        _readLock = new Lock();
-        _writeLock = new Lock();
+        _readLock = new();
+        _writeLock = new();
         _readIndex = 0UL;
         this._blockSize = blockSize;
         _stripeBlockCapacity = stripeBlockCapacity;
