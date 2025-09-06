@@ -9,6 +9,74 @@ using Intrinio.Collections.RingBuffers;
 [TestClass]
 public class RingBuffersTests
 {
+    #region RingBuffer
+
+    [TestMethod]
+    public void RingBuffer_EnqueueDequeue()
+    {
+        ulong      value      = 5UL;
+        uint       blockSize  = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
+        uint       capacity   = 10u;
+        RingBuffer ringBuffer = new RingBuffer(blockSize, capacity);
+        
+        Span<byte> buffer = stackalloc byte[Convert.ToInt32(blockSize)];
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+        
+        Assert.IsTrue(ringBuffer.TryEnqueue(buffer.Slice(0, sizeof(ulong))), "Enqueue should be successful.");
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //clear buffer state
+        Assert.IsTrue(ringBuffer.TryDequeue(buffer), "Dequeue should be successful.");
+        Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+    }
+    
+    [TestMethod]
+    public void RingBuffer_T_EnqueueDequeue()
+    {
+        ulong             value      = 5UL;
+        uint              blockSize  = sizeof(ulong);
+        uint              capacity   = 10u;
+        RingBuffer<ulong> ringBuffer = new RingBuffer<ulong>(capacity);
+        
+        Assert.IsTrue(ringBuffer.TryEnqueue(value), "Enqueue should be successful.");
+        Assert.IsTrue(ringBuffer.TryDequeue(out ulong result), "Dequeue should be successful.");
+        Assert.AreEqual(value, result, "Dequeued value should be equal to the original value.");
+    }
+
+    #endregion //RingBuffer
+    
+    #region SingleProducerRingBuffer
+
+    [TestMethod]
+    public void SingleProducerRingBuffer_EnqueueDequeue()
+    {
+        ulong                    value      = 5UL;
+        uint                     blockSize  = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
+        uint                     capacity   = 10u;
+        SingleProducerRingBuffer ringBuffer = new SingleProducerRingBuffer(blockSize, capacity);
+        
+        Span<byte> buffer = stackalloc byte[Convert.ToInt32(blockSize)];
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+        
+        Assert.IsTrue(ringBuffer.TryEnqueue(buffer.Slice(0, sizeof(ulong))), "Enqueue should be successful.");
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //clear buffer state
+        Assert.IsTrue(ringBuffer.TryDequeue(buffer), "Dequeue should be successful.");
+        Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+    }
+    
+    [TestMethod]
+    public void SingleProducerRingBuffer_T_EnqueueDequeue()
+    {
+        ulong             value      = 5UL;
+        uint              blockSize  = sizeof(ulong);
+        uint              capacity   = 10u;
+        SingleProducerRingBuffer<ulong> ringBuffer = new SingleProducerRingBuffer<ulong>(capacity);
+        
+        Assert.IsTrue(ringBuffer.TryEnqueue(value),            "Enqueue should be successful.");
+        Assert.IsTrue(ringBuffer.TryDequeue(out ulong result), "Dequeue should be successful.");
+        Assert.AreEqual(value, result, "Dequeued value should be equal to the original value.");
+    }
+
+    #endregion //SingleProducerRingBuffer
+    
     #region PartitionedRoundRobinDelayDynamicBlockRingBuffer
     [TestMethod]
     public void PartitionedRoundRobinDelayDynamicBlockRingBuffer_EnqueueDequeue()
