@@ -43,6 +43,40 @@ public class RingBuffersTests
 
     #endregion //RingBuffer
     
+    #region UnsafeRingBuffer
+
+    [TestMethod]
+    public void UnsafeRingBuffer_EnqueueDequeue()
+    {
+        ulong            value      = 5UL;
+        uint             blockSize  = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
+        uint             capacity   = 10u;
+        UnsafeRingBuffer ringBuffer = new UnsafeRingBuffer(blockSize, capacity);
+        
+        Span<byte> buffer = stackalloc byte[Convert.ToInt32(blockSize)];
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+        
+        Assert.IsTrue(ringBuffer.TryEnqueue(buffer.Slice(0, sizeof(ulong))), "Enqueue should be successful.");
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //clear buffer state
+        Assert.IsTrue(ringBuffer.TryDequeue(buffer), "Dequeue should be successful.");
+        Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+    }
+    
+    [TestMethod]
+    public void UnsafeRingBuffer_T_EnqueueDequeue()
+    {
+        ulong                   value      = 5UL;
+        uint                    blockSize  = sizeof(ulong);
+        uint                    capacity   = 10u;
+        UnsafeRingBuffer<ulong> ringBuffer = new UnsafeRingBuffer<ulong>(capacity);
+        
+        Assert.IsTrue(ringBuffer.TryEnqueue(value),            "Enqueue should be successful.");
+        Assert.IsTrue(ringBuffer.TryDequeue(out ulong result), "Dequeue should be successful.");
+        Assert.AreEqual(value, result, "Dequeued value should be equal to the original value.");
+    }
+
+    #endregion //UnsafeRingBuffer
+    
     #region SingleProducerRingBuffer
 
     [TestMethod]
