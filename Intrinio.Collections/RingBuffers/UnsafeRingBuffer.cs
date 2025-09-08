@@ -117,7 +117,7 @@ public class UnsafeRingBuffer : IRingBuffer
 }
 
 /// <summary>
-/// A thread-unsafe implementation of the IRingBuffer (same producer and consumer).  Full behavior: the block trying to be enqueued will be dropped. 
+/// A thread-unsafe implementation of the IRingBuffer (same producer and consumer).  Full behavior: the <see cref="T"/> trying to be enqueued will be dropped. 
 /// </summary>
 public class UnsafeRingBuffer<T> : IRingBuffer<T> where T : struct
 {

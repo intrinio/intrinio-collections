@@ -13,13 +13,8 @@ public class RingBuffer : IRingBuffer
     private readonly byte[] _data;
     private ulong _blockNextReadIndex;
     private ulong _blockNextWriteIndex;
-#if NET9_0_OR_GREATER
-    private readonly Lock _readLock;
-    private readonly Lock _writeLock;
-#else
-    private readonly object _readLock;
-    private readonly object _writeLock;
-#endif
+    private SpinLock _readLock;
+    private SpinLock _writeLock;
     private ulong _count;
     private readonly uint _blockSize;
     private readonly ulong _blockCapacity;
@@ -84,9 +79,12 @@ public class RingBuffer : IRingBuffer
             Interlocked.Increment(ref _dropCount);
             return false;
         }
-
-        lock (_writeLock)
+        
+        bool lockTaken = false;
+        try
         {
+            _writeLock.Enter(ref lockTaken);
+            
             if (IsFullNoLock())
             {
                 Interlocked.Increment(ref _dropCount);
@@ -101,6 +99,11 @@ public class RingBuffer : IRingBuffer
 
             return true;
         }
+        finally
+        {
+            if (lockTaken) 
+                _writeLock.Exit();
+        }
     }
 
     /// <summary>
@@ -109,8 +112,11 @@ public class RingBuffer : IRingBuffer
     /// <param name="fullBlockBuffer">The buffer to copy the byte block to.</param>
     public bool TryDequeue(Span<byte> fullBlockBuffer)
     {
-        lock (_readLock)
+        bool lockTaken = false;
+        try
         {
+            _readLock.Enter(ref lockTaken);
+            
             if (IsEmptyNoLock())
                 return false;
             
@@ -121,6 +127,11 @@ public class RingBuffer : IRingBuffer
             Interlocked.Decrement(ref _count);
             Interlocked.Increment(ref _processed);
             return true;
+        }
+        finally
+        {
+            if (lockTaken) 
+                _readLock.Exit();
         }
     }
 
@@ -138,7 +149,7 @@ public class RingBuffer : IRingBuffer
 }
 
 /// <summary>
-/// A thread-safe implementation of the IRingBuffer (multiple producer and multiple consumer).  Full behavior: the block trying to be enqueued will be dropped. 
+/// A thread-safe implementation of the IRingBuffer (multiple producer and multiple consumer).  Full behavior: the <see cref="T"/>  trying to be enqueued will be dropped. 
 /// </summary>
 public class RingBuffer<T> : IRingBuffer<T> where T : struct
 {
@@ -147,13 +158,8 @@ public class RingBuffer<T> : IRingBuffer<T> where T : struct
     private readonly T DEFAULT = default(T);
     private ulong _nextReadIndex;
     private ulong _nextWriteIndex;
-#if NET9_0_OR_GREATER
-    private readonly Lock _readLock;
-    private readonly Lock _writeLock;
-#else
-    private readonly object _readLock;
-    private readonly object _writeLock;
-#endif
+    private SpinLock _readLock;
+    private SpinLock _writeLock;
     private ulong _count;
     private readonly ulong _capacity;
     private ulong _dropCount;
@@ -215,9 +221,12 @@ public class RingBuffer<T> : IRingBuffer<T> where T : struct
             Interlocked.Increment(ref _dropCount);
             return false;
         }
-
-        lock (_writeLock)
+        
+        bool lockTaken = false;
+        try
         {
+            _writeLock.Enter(ref lockTaken);
+            
             if (IsFullNoLock())
             {
                 Interlocked.Increment(ref _dropCount);
@@ -231,6 +240,11 @@ public class RingBuffer<T> : IRingBuffer<T> where T : struct
 
             return true;
         }
+        finally
+        {
+            if (lockTaken) 
+                _writeLock.Exit();
+        }
     }
 
     /// <summary>
@@ -240,8 +254,11 @@ public class RingBuffer<T> : IRingBuffer<T> where T : struct
     /// <param name="obj">The dequeued <see cref="T"/>.</param>
     public bool TryDequeue(out T obj)
     {
-        lock (_readLock)
+        bool lockTaken = false;
+        try
         {
+            _readLock.Enter(ref lockTaken);
+            
             if (IsEmptyNoLock())
             {
                 obj = DEFAULT;
@@ -254,6 +271,11 @@ public class RingBuffer<T> : IRingBuffer<T> where T : struct
             Interlocked.Decrement(ref _count);
             Interlocked.Increment(ref _processed);
             return true;
+        }
+        finally
+        {
+            if (lockTaken) 
+                _readLock.Exit();
         }
     }
 

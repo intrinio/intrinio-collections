@@ -7,14 +7,13 @@ using System.Runtime.CompilerServices;
 /// <summary>
 /// A thread-safe implementation of the IRingBuffer (multiple producer and multiple consumer).  Full behavior: the oldest block in the ring buffer will be dropped. 
 /// </summary>
-public class DropOldestRingBuffer : IRingBuffer
+public class SingleProducerDropOldestRingBuffer : IRingBuffer
 {
     #region Data Members
     private readonly byte[] _data;
     private ulong _blockNextReadIndex;
     private ulong _blockNextWriteIndex;
     private SpinLock _readLock;
-    private SpinLock _writeLock;
     private ulong _count;
     private readonly uint _blockSize;
     private readonly ulong _blockCapacity;
@@ -52,7 +51,7 @@ public class DropOldestRingBuffer : IRingBuffer
     /// </summary>
     /// <param name="blockSize">The fixed size of each byte block.</param>
     /// <param name="blockCapacity">The fixed capacity of block count.</param>
-    public DropOldestRingBuffer(uint blockSize, ulong blockCapacity)
+    public SingleProducerDropOldestRingBuffer(uint blockSize, ulong blockCapacity)
     {
         this._blockSize = blockSize;
         this._blockCapacity = blockCapacity;
@@ -62,7 +61,6 @@ public class DropOldestRingBuffer : IRingBuffer
         _count = 0u;
         _dropCount = 0UL;
         _readLock = new();
-        _writeLock = new();
         _data = new byte[blockSize * blockCapacity];
     }
 
@@ -76,44 +74,33 @@ public class DropOldestRingBuffer : IRingBuffer
     /// <returns>Whether the block was successfully enqueued or not.</returns>
     public bool TryEnqueue(ReadOnlySpan<byte> blockToWrite)
     {
-        bool writeLockTaken = false;
-        try
+        if (IsFullNoLock())
         {
-            _writeLock.Enter(ref writeLockTaken);
-            
-            if (IsFullNoLock())
+            bool readLockTaken = false;
+            try
             {
-                bool readLockTaken = false;
-                try
-                {
-                    _readLock.Enter(ref readLockTaken);
+                _readLock.Enter(ref readLockTaken);
             
-                    if (IsFullNoLock())
-                    {
-                        _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
-                        Interlocked.Decrement(ref _count);
-                        Interlocked.Increment(ref _dropCount);
-                    }
-                }
-                finally
+                if (IsFullNoLock())
                 {
-                    if (readLockTaken) 
-                        _readLock.Exit();
+                    _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
+                    Interlocked.Decrement(ref _count);
+                    Interlocked.Increment(ref _dropCount);
                 }
             }
-            
-            Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextWriteIndex * BlockSize), Convert.ToInt32(BlockSize));
-            blockToWrite.Slice(0, Math.Min(blockToWrite.Length, Convert.ToInt32(_blockSize))).CopyTo(target);
-            
-            _blockNextWriteIndex = (++_blockNextWriteIndex) % BlockCapacity;
-            Interlocked.Increment(ref _count);
-            return true;
+            finally
+            {
+                if (readLockTaken) 
+                    _readLock.Exit();
+            }
         }
-        finally
-        {
-            if (writeLockTaken) 
-                _writeLock.Exit();
-        }
+            
+        Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextWriteIndex * BlockSize), Convert.ToInt32(BlockSize));
+        blockToWrite.Slice(0, Math.Min(blockToWrite.Length, Convert.ToInt32(_blockSize))).CopyTo(target);
+            
+        _blockNextWriteIndex = (++_blockNextWriteIndex) % BlockCapacity;
+        Interlocked.Increment(ref _count);
+        return true;
     }
 
     /// <summary>
@@ -162,7 +149,7 @@ public class DropOldestRingBuffer : IRingBuffer
 /// <summary>
 /// A thread-safe implementation of the IRingBuffer (multiple producer and multiple consumer).  Full behavior: the oldest <see cref="T"/> in the ring buffer will be dropped. 
 /// </summary>
-public class DropOldestRingBuffer<T> : IRingBuffer<T> where T : struct
+public class SingleProducerDropOldestRingBuffer<T> : IRingBuffer<T> where T : struct
 {
     #region Data Members
     private readonly T[] _data;
@@ -170,7 +157,6 @@ public class DropOldestRingBuffer<T> : IRingBuffer<T> where T : struct
     private ulong _nextReadIndex;
     private ulong _nextWriteIndex;
     private SpinLock _readLock;
-    private SpinLock _writeLock;
     private ulong _count;
     private readonly ulong _capacity;
     private ulong _dropCount;
@@ -205,7 +191,7 @@ public class DropOldestRingBuffer<T> : IRingBuffer<T> where T : struct
     /// A thread-safe implementation of the IRingBuffer (multiple producer and multiple consumer).  Full behavior: the oldest block in the ring buffer will be dropped. 
     /// </summary>
     /// <param name="capacity">The fixed capacity of block count.</param>
-    public DropOldestRingBuffer(ulong capacity)
+    public SingleProducerDropOldestRingBuffer(ulong capacity)
     {
         this._capacity = capacity;
         _processed = 0UL;
@@ -214,7 +200,6 @@ public class DropOldestRingBuffer<T> : IRingBuffer<T> where T : struct
         _count = 0u;
         _dropCount = 0UL;
         _readLock = new();
-        _writeLock = new();
         _data = new T[capacity];
     }
 
@@ -228,43 +213,32 @@ public class DropOldestRingBuffer<T> : IRingBuffer<T> where T : struct
     /// <returns>Whether the enqueue was successful or not.</returns>
     public bool TryEnqueue(T obj)
     {
-        bool writeLockTaken = false;
-        try
+        if (IsFullNoLock())
         {
-            _writeLock.Enter(ref writeLockTaken);
-            
-            if (IsFullNoLock())
+            bool readLockTaken = false;
+            try
             {
-                bool readLockTaken = false;
-                try
-                {
-                    _readLock.Enter(ref readLockTaken);
+                _readLock.Enter(ref readLockTaken);
             
-                    if (IsFullNoLock())
-                    {
-                        _nextReadIndex = (++_nextReadIndex) % Capacity;
-                        Interlocked.Decrement(ref _count);
-                        Interlocked.Increment(ref _dropCount);
-                    }
-                }
-                finally
+                if (IsFullNoLock())
                 {
-                    if (readLockTaken) 
-                        _readLock.Exit();
+                    _nextReadIndex = (++_nextReadIndex) % Capacity;
+                    Interlocked.Decrement(ref _count);
+                    Interlocked.Increment(ref _dropCount);
                 }
             }
-            
-            _data[_nextWriteIndex] = obj;
-            
-            _nextWriteIndex = (++_nextWriteIndex) % Capacity;
-            Interlocked.Increment(ref _count);
-            return true;
+            finally
+            {
+                if (readLockTaken) 
+                    _readLock.Exit();
+            }
         }
-        finally
-        {
-            if (writeLockTaken) 
-                _writeLock.Exit();
-        }
+            
+        _data[_nextWriteIndex] = obj;
+            
+        _nextWriteIndex = (++_nextWriteIndex) % Capacity;
+        Interlocked.Increment(ref _count);
+        return true;
     }
 
     /// <summary>
