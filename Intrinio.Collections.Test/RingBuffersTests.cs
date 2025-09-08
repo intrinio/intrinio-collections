@@ -44,11 +44,10 @@ public class RingBuffersTests
     [TestMethod]
     public void RingBuffer_MultipleThreads()
     {
-        int   threadCount         = 32;
-        ulong value               = 5UL;
-        uint  blockSize           = 117u;
-        ulong pageSize            = blockSize * 16;
-        ulong capacity            = pageSize * 100u + 1;
+        int   threadCount = 32;
+        ulong value       = 5UL;
+        uint  blockSize   = 117u;
+        ulong capacity    = blockSize * 8192u * 16 + 1;
         
         RingBuffer ringBuffer = new RingBuffer(blockSize, capacity);
         
@@ -63,6 +62,33 @@ public class RingBuffersTests
                 Random ran = new Random();
                 var threadLocalRingBuffer = (RingBuffer)o;
                 Span<byte> buffer = stackalloc byte[Convert.ToInt32(blockSize)];
+                BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
+                for (ulong i = 0; i < capacity; i++)
+                {
+                    threadLocalRingBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+                }
+
+                for (ulong i = 0; i < capacity; i++)
+                {
+                    threadLocalRingBuffer.TryEnqueue(buffer); //we're going to over-enqueue a lot on purpose.
+                }
+            }
+            catch(Exception e)
+            {
+                failed = true;
+            }
+        });
+        threads[i].Start(ringBuffer);
+
+        ++i;
+        
+        threads[i] = new Thread(o =>
+        {
+            try
+            {
+                Random     ran                   = new Random();
+                var        threadLocalRingBuffer = (RingBuffer)o;
+                Span<byte> buffer                = stackalloc byte[Convert.ToInt32(blockSize)];
                 BinaryPrimitives.WriteUInt64BigEndian(buffer, value);
                 for (ulong i = 0; i < capacity; i++)
                 {
@@ -90,8 +116,6 @@ public class RingBuffersTests
             }
         });
         threads[i].Start(ringBuffer);
-
-        ++i;
         
         for (;i < threads.Length; i++)
         {
@@ -112,6 +136,122 @@ public class RingBuffersTests
                     while (threadLocalRingBuffer.TryDequeue(buffer))
                     {
                         Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
+                    }
+                }
+                catch(Exception e)
+                {
+                    failed = true;
+                }
+            });
+            threads[i].Start(ringBuffer);
+        }
+
+        //Cleanup
+        for (i = 0; i < threads.Length; i++)
+        {
+            try
+            {
+                threads[i].Join();
+            }
+            catch (Exception e)
+            {
+                
+            }
+        }
+
+        if (failed)
+            Assert.Fail("Thread failed.");
+    }
+    
+    [TestMethod]
+    public void RingBuffer_T_MultipleThreads()
+    {
+        int   threadCount = 32;
+        ulong value       = 5UL;
+        ulong capacity    = 8192u * 16 + 1;
+        
+        RingBuffer<ulong> ringBuffer = new RingBuffer<ulong>(capacity);
+        
+        Thread[] threads = new Thread[threadCount];
+        bool     failed  = false;
+        int i = 0;
+
+        threads[i] = new Thread(o =>
+        {
+            try
+            {
+                var threadLocalRingBuffer = (RingBuffer<ulong>)o;
+                
+                for (ulong i = 0; i < capacity; i++)
+                {
+                    threadLocalRingBuffer?.TryEnqueue(value); //we're going to over-enqueue a lot on purpose.
+                }
+
+                for (ulong i = 0; i < capacity; i++)
+                {
+                    threadLocalRingBuffer?.TryEnqueue(value); //we're going to over-enqueue a lot on purpose.
+                }
+            }
+            catch(Exception e)
+            {
+                failed = true;
+            }
+        });
+        threads[i].Start(ringBuffer);
+
+        ++i;
+        
+        threads[i] = new Thread(o =>
+        {
+            try
+            {
+                var threadLocalRingBuffer = (RingBuffer<ulong>)o;
+             
+                for (ulong i = 0; i < capacity; i++)
+                {
+                    threadLocalRingBuffer.TryEnqueue(value); //we're going to over-enqueue a lot on purpose.
+                }
+
+                ulong val;
+                while (threadLocalRingBuffer.TryDequeue(out val))
+                {
+                    Assert.AreEqual(value, val, "Dequeued value should be equal to the original value.");
+                }
+                    
+                for (ulong i = 0; i < capacity; i++)
+                {
+                    threadLocalRingBuffer.TryEnqueue(value); //we're going to over-enqueue a lot on purpose.
+                }
+                    
+                while (threadLocalRingBuffer.TryDequeue(out val))
+                {
+                    Assert.AreEqual(value, val, "Dequeued value should be equal to the original value.");
+                }
+            }
+            catch(Exception e)
+            {
+                failed = true;
+            }
+        });
+        threads[i].Start(ringBuffer);
+        
+        for (;i < threads.Length; i++)
+        {
+            threads[i] = new Thread(o =>
+            {
+                try
+                {
+                    var threadLocalRingBuffer = (RingBuffer<ulong>)o;
+
+                    ulong val;
+                    while (threadLocalRingBuffer.TryDequeue(out val))
+                    {
+                        Assert.AreEqual(value, val, "Dequeued value should be equal to the original value.");
+                    }
+                    
+                    while (threadLocalRingBuffer.TryDequeue(out val))
+                    {
+                        Assert.AreEqual(value, val, "Dequeued value should be equal to the original value.");
                     }
                 }
                 catch(Exception e)
