@@ -15,11 +15,7 @@ public class DynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
     private readonly int[] _blockLengths;
     private ulong _blockNextReadIndex;
     private ulong _blockNextWriteIndex;
-#if NET9_0_OR_GREATER
-    private readonly Lock _readLock;
-#else
-    private readonly object _readLock;
-#endif
+    private SpinLock _readLock;
     private ulong _count;
     private readonly uint _blockSize;
     private readonly ulong _blockCapacity;
@@ -105,8 +101,11 @@ public class DynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
     /// <param name="fullBlockBuffer">The buffer to copy the byte block to.</param>
     public bool TryDequeue(Span<byte> fullBlockBuffer)
     {
-        lock (_readLock)
+        bool lockTaken = false;
+        try
         {
+            _readLock.Enter(ref lockTaken);
+            
             if (IsEmptyNoLock())
                 return false;
             
@@ -117,6 +116,10 @@ public class DynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
             Interlocked.Decrement(ref _count);
             Interlocked.Increment(ref _processed);
             return true;
+        }
+        finally
+        {
+            if (lockTaken) _readLock.Exit();
         }
     }
 
@@ -140,8 +143,11 @@ public class DynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
     /// <returns>Whether the dequeue successfully retrieved a block or not.</returns>
     public bool TryDequeue(Span<byte> fullBlockBuffer, out Span<byte> trimmedBuffer)
     {
-        lock (_readLock)
+        bool lockTaken = false;
+        try
         {
+            _readLock.Enter(ref lockTaken);
+            
             if (IsEmptyNoLock())
             {
                 trimmedBuffer = fullBlockBuffer;
@@ -156,6 +162,10 @@ public class DynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
             Interlocked.Decrement(ref _count);
             Interlocked.Increment(ref _processed);
             return true;
+        }
+        finally
+        {
+            if (lockTaken) _readLock.Exit();
         }
     }
 }

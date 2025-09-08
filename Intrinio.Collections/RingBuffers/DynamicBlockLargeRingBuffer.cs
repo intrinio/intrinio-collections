@@ -18,13 +18,8 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
     private readonly uint _blockSize;
     private readonly ulong _stripeBlockCapacity;
     private readonly ulong _totalBlockCapacity;
-#if NET9_0_OR_GREATER
-    private readonly Lock _readLock;
-    private readonly Lock _writeLock;
-#else
-    private readonly object _readLock;
-    private readonly object _writeLock;
-#endif
+    private SpinLock _readLock;
+    private SpinLock _writeLock;
     
     /// <summary>
     /// The fixed size of each byte block.
@@ -137,8 +132,11 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryEnqueue(ReadOnlySpan<byte> blockToWrite)
     {
-        lock (_writeLock)
+        bool lockTaken = false;
+        try
         {
+            _writeLock.Enter(ref lockTaken);
+            
             if (_queues[_writeIndex % _stripeCount].TryEnqueue(blockToWrite))
             {
                 Interlocked.Increment(ref _writeIndex);
@@ -146,6 +144,10 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
             }
             
             return false;
+        }
+        finally
+        {
+            if (lockTaken) _writeLock.Exit();
         }
     }
 
@@ -157,8 +159,11 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryDequeue(Span<byte> blockBuffer)
     {
-        lock (_readLock)
+        bool lockTaken = false;
+        try
         {
+            _readLock.Enter(ref lockTaken);
+            
             if (_queues[_readIndex % _stripeCount].TryDequeue(blockBuffer))
             {
                 Interlocked.Increment(ref _readIndex);
@@ -166,6 +171,10 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
             }
 
             return false;
+        }
+        finally
+        {
+            if (lockTaken) _readLock.Exit();
         }
     }
 
@@ -179,8 +188,11 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
     public bool TryDequeue(Span<byte> fullBlockBuffer, out Span<byte> trimmedBuffer)
     {
         trimmedBuffer = fullBlockBuffer;
-        lock (_readLock)
+        bool lockTaken = false;
+        try
         {
+            _readLock.Enter(ref lockTaken);
+            
             if (_queues[_readIndex % _stripeCount].TryDequeue(fullBlockBuffer, out trimmedBuffer))
             {
                 Interlocked.Increment(ref _readIndex);
@@ -188,6 +200,10 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
             }
 
             return false;
+        }
+        finally
+        {
+            if (lockTaken) _readLock.Exit();
         }
     }
 }
