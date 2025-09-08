@@ -7,14 +7,14 @@ using System.Runtime.CompilerServices;
 using System.Buffers.Binary;
 
 /// <summary>
-/// A fixed size group of striped <see cref="Intrinio.Collections.RingBuffers.DynamicBlockSingleProducerRingBuffer"/>, so that the ring buffer may exceed the <see cref="System.Int32.MaxValue"/> in total size. Production and consumption is thread-safe but limited to one producer concurrently, and one consumer concurrently in order to maintain FIFO.  Provides support for dealing with blocks of varying size less than or equal to block size.
+/// A fixed size group of striped <see cref="Intrinio.Collections.RingBuffers.DynamicBlockUnsafeRingBuffer"/>, so that the ring buffer may exceed the <see cref="System.Int32.MaxValue"/> in total size. Production and consumption is thread-safe but limited to one producer concurrently, and one consumer concurrently in order to maintain FIFO.  Provides support for dealing with blocks of varying size less than or equal to block size.
 /// </summary>
 public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
 {
     private readonly ulong _stripeCount;
     private ulong _readIndex;
     private ulong _writeIndex;
-    private readonly DynamicBlockSingleProducerRingBuffer[] _queues;
+    private readonly DynamicBlockUnsafeRingBuffer[] _queues;
     private readonly uint _blockSize;
     private readonly ulong _stripeBlockCapacity;
     private readonly ulong _totalBlockCapacity;
@@ -39,7 +39,7 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
         get
         {
             ulong sum = 0UL;
-            foreach (DynamicBlockSingleProducerRingBuffer queue in _queues)
+            foreach (DynamicBlockUnsafeRingBuffer queue in _queues)
                 sum += queue.Count;
             return sum;
         }
@@ -50,7 +50,7 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
         get
         {
             ulong sum = 0UL;
-            foreach (DynamicBlockSingleProducerRingBuffer queue in _queues)
+            foreach (DynamicBlockUnsafeRingBuffer queue in _queues)
                 sum += queue.ProcessedCount;
             return sum;
         }
@@ -64,7 +64,7 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
         get
         {
             ulong sum = 0UL;
-            foreach (DynamicBlockSingleProducerRingBuffer queue in _queues)
+            foreach (DynamicBlockUnsafeRingBuffer queue in _queues)
                 sum += queue.DropCount;
             return sum;
         }
@@ -117,9 +117,9 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
         _stripeBlockCapacity = stripeBlockCapacity;
         this._stripeCount = stripeCount;
         _totalBlockCapacity = Convert.ToUInt64(stripeBlockCapacity) * this._stripeCount;
-        _queues = new DynamicBlockSingleProducerRingBuffer[stripeCount];
+        _queues = new DynamicBlockUnsafeRingBuffer[stripeCount];
         for (int i = 0; i < stripeCount; i++)
-            _queues[i] = new DynamicBlockSingleProducerRingBuffer(blockSize, stripeBlockCapacity);
+            _queues[i] = new DynamicBlockUnsafeRingBuffer(blockSize, stripeBlockCapacity);
     }
 
     /// <summary>

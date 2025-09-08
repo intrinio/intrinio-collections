@@ -19,12 +19,12 @@ public class UnsafeDropOldestRingBuffer : IRingBuffer
     private ulong _dropCount;
     
     private ulong _processed;
-    public ulong ProcessedCount { get { return Interlocked.Read(ref _processed); } }
+    public ulong ProcessedCount { get { return _processed; } }
     
-    public ulong Count { get { return Interlocked.Read(ref _count); } }
+    public ulong Count { get { return _count; } }
     public uint BlockSize { get { return _blockSize; } }
     public ulong BlockCapacity { get { return _blockCapacity; } }
-    public ulong DropCount { get { return Interlocked.Read(ref _dropCount); } }
+    public ulong DropCount { get { return _dropCount; } }
 
     public bool IsEmpty
     {
@@ -134,11 +134,11 @@ public class UnsafeDropOldestRingBuffer<T> : IRingBuffer<T> where T : struct
     private ulong _dropCount;
     
     private ulong _processed;
-    public ulong ProcessedCount { get { return Interlocked.Read(ref _processed); } }
+    public ulong ProcessedCount { get { return _processed; } }
     
-    public ulong Count { get { return Interlocked.Read(ref _count); } }
+    public ulong Count { get { return _count; } }
     public ulong Capacity { get { return _capacity; } }
-    public ulong DropCount { get { return Interlocked.Read(ref _dropCount); } }
+    public ulong DropCount { get { return _dropCount; } }
 
     public bool IsEmpty
     {

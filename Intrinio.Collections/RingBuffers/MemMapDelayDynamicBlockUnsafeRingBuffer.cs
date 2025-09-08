@@ -46,12 +46,12 @@ public class MemMapDelayDynamicBlockUnsafeRingBuffer: IDynamicBlockRingBuffer, I
     private ulong _dropCount;
     
     private ulong _processed;
-    public ulong ProcessedCount { get { return Interlocked.Read(ref _processed); } }
+    public ulong ProcessedCount { get { return _processed; } }
     
-    public ulong Count { get { return Interlocked.Read(ref _count); } }
+    public ulong Count { get { return _count; } }
     public uint BlockSize { get { return _blockSize; } }
     public ulong BlockCapacity { get { return _blockCapacity; } }
-    public ulong DropCount { get { return Interlocked.Read(ref _dropCount); } }
+    public ulong DropCount { get { return _dropCount; } }
 
     public bool IsEmpty
     {
@@ -399,13 +399,13 @@ public class MemMapDelayDynamicBlockUnsafeRingBuffer: IDynamicBlockRingBuffer, I
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool IsFullNoLock()
     {
-        return Interlocked.Read(ref _count) == _blockCapacity;
+        return _count == _blockCapacity;
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool IsEmptyNoLock()
     {
-        return Interlocked.Read(ref _count) == 0UL;
+        return _count == 0UL;
     }
 
     /// <summary>
