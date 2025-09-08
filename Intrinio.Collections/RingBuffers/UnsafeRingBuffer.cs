@@ -5,26 +5,25 @@ using System.Threading;
 using System.Runtime.CompilerServices;
 
 /// <summary>
-/// A read thread-safe, write not thread-safe implementation of the IRingBuffer (single producer and multiple consumer).  Full behavior: the block trying to be enqueued will be dropped. 
+/// A thread-unsafe implementation of the IRingBuffer (same producer and consumer).  Full behavior: the block trying to be enqueued will be dropped. 
 /// </summary>
-public class SingleProducerRingBuffer : IRingBuffer
+public class UnsafeRingBuffer : IRingBuffer
 {
     #region Data Members
     private readonly byte[] _data;
     private ulong _blockNextReadIndex;
     private ulong _blockNextWriteIndex;
-    private SpinLock _readLock;
     private ulong _count;
     private readonly uint _blockSize;
     private readonly ulong _blockCapacity;
     private ulong _dropCount;
     private ulong _processed;
-    public ulong ProcessedCount { get { return Interlocked.Read(ref _processed); } }
+    public ulong ProcessedCount { get { return _processed; } }
 
-    public ulong Count { get { return Interlocked.Read(ref _count); } }
+    public ulong Count { get { return _count; } }
     public uint BlockSize { get { return _blockSize; } }
     public ulong BlockCapacity { get { return _blockCapacity; } }
-    public ulong DropCount { get { return Interlocked.Read(ref _dropCount); } }
+    public ulong DropCount { get { return _dropCount; } }
 
     public bool IsEmpty
     {
@@ -46,11 +45,11 @@ public class SingleProducerRingBuffer : IRingBuffer
     #region Constructors
 
     /// <summary>
-    /// A read thread-safe, write not thread-safe implementation of the IRingBuffer (single producer and multiple consumer).  Full behavior: the block trying to be enqueued will be dropped. 
+    /// A thread-unsafe implementation of the IRingBuffer (same producer and consumer).  Full behavior: the block trying to be enqueued will be dropped.  
     /// </summary>
     /// <param name="blockSize">The fixed size of each byte block.</param>
     /// <param name="blockCapacity">The fixed capacity of block count.</param>
-    public SingleProducerRingBuffer(uint blockSize, ulong blockCapacity)
+    public UnsafeRingBuffer(uint blockSize, ulong blockCapacity)
     {
         this._blockSize = blockSize;
         this._blockCapacity = blockCapacity;
@@ -59,14 +58,13 @@ public class SingleProducerRingBuffer : IRingBuffer
         _blockNextWriteIndex = 0u;
         _count = 0u;
         _dropCount = 0UL;
-        _readLock = new();
         _data = new byte[blockSize * blockCapacity];
     }
 
     #endregion //Constructors
 
     /// <summary>
-    /// Not thread-safe try enqueue.  This is not safe for calling concurrently, and intended for use with a single producer.
+    /// Not thread-safe try enqueue.  This is not safe for calling concurrently, and intended for where producer and consumer are the same.
     /// Full behavior: the block trying to be enqueued will be dropped. 
     /// </summary>
     /// <param name="blockToWrite">The byte block to copy from.</param>
@@ -74,7 +72,7 @@ public class SingleProducerRingBuffer : IRingBuffer
     {
         if (IsFullNoLock())
         {
-            Interlocked.Increment(ref _dropCount);
+            ++_dropCount;
             return false;
         }
             
@@ -82,73 +80,61 @@ public class SingleProducerRingBuffer : IRingBuffer
         blockToWrite.Slice(0, Math.Min(blockToWrite.Length, Convert.ToInt32(_blockSize))).CopyTo(target);
             
         _blockNextWriteIndex = (++_blockNextWriteIndex) % BlockCapacity;
-        Interlocked.Increment(ref _count);
+        ++_count;
 
         return true;
     }
 
     /// <summary>
-    /// Thread-safe try dequeue.  Parameter "blockBuffer" MUST be of length BlockSize!
+    /// Not thread-safe try dequeue.  This is not safe for calling concurrently, and intended for where producer and consumer are the same.  Parameter "blockBuffer" MUST be of length BlockSize!
     /// </summary>
     /// <param name="fullBlockBuffer">The buffer to copy the byte block to.</param>
     public bool TryDequeue(Span<byte> fullBlockBuffer)
     {
-        bool lockTaken = false;
-        try
-        {
-            _readLock.Enter(ref lockTaken);
+        if (IsEmptyNoLock())
+            return false;
             
-            if (IsEmptyNoLock())
-                return false;
+        Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextReadIndex * BlockSize), Convert.ToInt32(BlockSize));
+        target.CopyTo(fullBlockBuffer);
             
-            Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextReadIndex * BlockSize), Convert.ToInt32(BlockSize));
-            target.CopyTo(fullBlockBuffer);
-            
-            _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
-            Interlocked.Decrement(ref _count);
-            Interlocked.Increment(ref _processed);
-            return true;
-        }
-        finally
-        {
-            if (lockTaken) 
-                _readLock.Exit();
-        }
+        _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
+        --_count;
+        ++_processed;
+        return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool IsFullNoLock()
     {
-        return Interlocked.Read(ref _count) == _blockCapacity;
+        return _count == _blockCapacity;
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool IsEmptyNoLock()
     {
-        return Interlocked.Read(ref _count) == 0UL;
+        return _count == 0UL;
     }
 }
 
 /// <summary>
-/// A read thread-safe, write not thread-safe implementation of the IRingBuffer (single producer and multiple consumer).  Full behavior: the block trying to be enqueued will be dropped. 
+/// A thread-unsafe implementation of the IRingBuffer (same producer and consumer).  Full behavior: the <see cref="T"/> trying to be enqueued will be dropped. 
 /// </summary>
-public class SingleProducerRingBuffer<T> : IRingBuffer<T> where T : struct
+public class UnsafeRingBuffer<T> : IRingBuffer<T> where T : struct
 {
     #region Data Members
     private readonly T[] _data;
     private readonly T DEFAULT = default(T);
     private ulong _nextReadIndex;
     private ulong _nextWriteIndex;
-    private SpinLock _readLock; 
     private ulong _count;
     private readonly ulong _capacity;
     private ulong _dropCount;
     private ulong _processed;
-    public ulong ProcessedCount { get { return Interlocked.Read(ref _processed); } }
+    public ulong ProcessedCount { get { return _processed; } }
 
-    public ulong Count { get { return Interlocked.Read(ref _count); } }
+    public ulong Count { get { return _count; } }
     public ulong Capacity { get { return _capacity; } }
-    public ulong DropCount { get { return Interlocked.Read(ref _dropCount); } }
+    public ulong DropCount { get { return _dropCount; } }
 
     public bool IsEmpty
     {
@@ -170,10 +156,10 @@ public class SingleProducerRingBuffer<T> : IRingBuffer<T> where T : struct
     #region Constructors
 
     /// <summary>
-    /// A read thread-safe, write not thread-safe implementation of the IRingBuffer (single producer and multiple consumer).  Full behavior: the block trying to be enqueued will be dropped. 
+    /// A thread-unsafe implementation of the IRingBuffer (same producer and consumer).  Full behavior: the block trying to be enqueued will be dropped. 
     /// </summary>
     /// <param name="capacity">The fixed capacity of <see cref="T"/> count.</param>
-    public SingleProducerRingBuffer(ulong capacity)
+    public UnsafeRingBuffer(ulong capacity)
     {
         this._capacity = capacity;
         _processed = 0UL;
@@ -181,14 +167,13 @@ public class SingleProducerRingBuffer<T> : IRingBuffer<T> where T : struct
         _nextWriteIndex = 0u;
         _count = 0u;
         _dropCount = 0UL;
-        _readLock = new();
         _data = new T[capacity];
     }
 
     #endregion //Constructors
 
     /// <summary>
-    /// Not thread-safe try enqueue.  This is not safe for calling concurrently, and intended for use with a single producer.
+    /// Not thread-safe try enqueue.  This is not safe for calling concurrently, and intended for where producer and consumer are the same.
     /// Full behavior: the <see cref="T"/> trying to be enqueued will be dropped. 
     /// </summary>
     /// <returns>Whether the enqueue was successful or not.</returns>
@@ -197,58 +182,48 @@ public class SingleProducerRingBuffer<T> : IRingBuffer<T> where T : struct
     {
         if (IsFullNoLock())
         {
-            Interlocked.Increment(ref _dropCount);
+            ++_dropCount;
             return false;
         }
             
         _data[_nextWriteIndex] = obj;
             
         _nextWriteIndex = (++_nextWriteIndex) % Capacity;
-        Interlocked.Increment(ref _count);
+        ++_count;
 
         return true;
     }
 
     /// <summary>
-    /// Thread-safe try dequeue.
+    /// Not thread-safe try dequeue.  This is not safe for calling concurrently, and intended for where producer and consumer are the same.  
     /// </summary>
     /// <returns>Whether the dequeue was successful or not.</returns>
     /// <param name="obj">The dequeued <see cref="T"/>.</param>
     public bool TryDequeue(out T obj)
     {
-        bool lockTaken = false;
-        try
+        if (IsEmptyNoLock())
         {
-            _readLock.Enter(ref lockTaken);
-            
-            if (IsEmptyNoLock())
-            {
-                obj = DEFAULT;
-                return false;
-            }
+            obj = DEFAULT;
+            return false;
+        }
 
-            obj = _data[_nextReadIndex];
+        obj = _data[_nextReadIndex];
             
-            _nextReadIndex = (++_nextReadIndex) % Capacity;
-            Interlocked.Decrement(ref _count);
-            Interlocked.Increment(ref _processed);
-            return true;
-        }
-        finally
-        {
-            if (lockTaken) _readLock.Exit();
-        }
+        _nextReadIndex = (++_nextReadIndex) % Capacity;
+        --_count;
+        ++_processed;
+        return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool IsFullNoLock()
     {
-        return Interlocked.Read(ref _count) == _capacity;
+        return _count == _capacity;
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool IsEmptyNoLock()
     {
-        return Interlocked.Read(ref _count) == 0UL;
+        return _count == 0UL;
     }
 }

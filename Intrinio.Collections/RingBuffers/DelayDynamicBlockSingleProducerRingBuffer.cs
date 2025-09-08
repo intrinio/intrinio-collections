@@ -18,11 +18,7 @@ public class DelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
     private readonly System.Diagnostics.Stopwatch _stopwatch;
     private ulong _blockNextReadIndex;
     private ulong _blockNextWriteIndex;
-#if NET9_0_OR_GREATER
-    private readonly Lock _readLock;
-#else
-    private readonly object _readLock;
-#endif
+    private SpinLock _readLock;
     private ulong _count;
     private readonly uint _blockSize;
     private readonly ulong _blockCapacity;
@@ -114,8 +110,11 @@ public class DelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
     /// <param name="fullBlockBuffer">The buffer to copy the byte block to.</param>
     public bool TryDequeue(Span<byte> fullBlockBuffer)
     {
-        lock (_readLock)
+        bool lockTaken = false;
+        try
         {
+            _readLock.Enter(ref lockTaken);
+            
             if (IsEmptyNoLock() || (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - _enqueueTimes[_blockNextReadIndex])))
                 return false;
             
@@ -126,6 +125,10 @@ public class DelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
             Interlocked.Decrement(ref _count);
             Interlocked.Increment(ref _processed);
             return true;
+        }
+        finally
+        {
+            if (lockTaken) _readLock.Exit();
         }
     }
 
@@ -149,8 +152,11 @@ public class DelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
     /// <returns>Whether the dequeue successfully retrieved a block or not.</returns>
     public bool TryDequeue(Span<byte> fullBlockBuffer, out Span<byte> trimmedBuffer)
     {
-        lock (_readLock)
+        bool lockTaken = false;
+        try
         {
+            _readLock.Enter(ref lockTaken);
+            
             if (IsEmptyNoLock() || (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - _enqueueTimes[_blockNextReadIndex])))
             {
                 trimmedBuffer = fullBlockBuffer;
@@ -166,5 +172,144 @@ public class DelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
             Interlocked.Increment(ref _processed);
             return true;
         }
+        finally
+        {
+            if (lockTaken) _readLock.Exit();
+        }
+    }
+}
+
+/// <summary>
+/// A read thread-safe, write not thread-safe implementation of the <see cref="IDynamicBlockRingBuffer"/> (single producer and multiple consumer), with support for tracking the used size of each byte-block.  Full behavior: the block trying to be enqueued will be dropped. 
+/// </summary>
+public class DelaySingleProducerRingBuffer<T> : IRingBuffer<T> where T : struct
+{
+    #region Data Members
+    private readonly T[] _data;
+    private readonly T DEFAULT = default(T);
+    private readonly long[] _enqueueTimes;
+    private readonly long _delayMilliseconds;
+    private readonly System.Diagnostics.Stopwatch _stopwatch;
+    private ulong _nextReadIndex;
+    private ulong _nextWriteIndex;
+    private SpinLock _readLock;
+    private ulong _count;
+    private readonly ulong _capacity;
+    private ulong _dropCount;
+    
+    private ulong _processed;
+    public ulong ProcessedCount { get { return Interlocked.Read(ref _processed); } }
+    
+    public ulong Count { get { return Interlocked.Read(ref _count); } }
+    public ulong Capacity { get { return _capacity; } }
+    public ulong DropCount { get { return Interlocked.Read(ref _dropCount); } }
+
+    public bool IsEmpty
+    {
+        get
+        {
+            return IsEmptyNoLock();
+        }
+    }
+
+    public bool IsFull
+    {
+        get
+        {
+            return IsFullNoLock();
+        }
+    }
+    #endregion //Data Members
+    
+    #region Constructors
+
+    /// <summary>
+    /// A read thread-safe, write not thread-safe implementation of the <see cref="IDynamicBlockRingBuffer"/> (single producer and multiple consumer).  Full behavior: the block trying to be enqueued will be dropped. Provides support for dealing with blocks of varying size less than or equal to block size. 
+    /// </summary>
+    /// <param name="delayMilliseconds">The number of milliseconds to delay blocks from being dequeued.</param>
+    /// <param name="capacity">The fixed capacity of block count.</param>
+    /// <param name="stopwatch">The stopwatch to use for comparison of elapsed milliseconds at time of dequeue to the elapsed milliseconds at the time a partition block was enqueued.</param>
+    public DelaySingleProducerRingBuffer(uint delayMilliseconds, ulong capacity, System.Diagnostics.Stopwatch? stopwatch = default)
+    {
+        _capacity = capacity;
+        _delayMilliseconds = Convert.ToInt64(delayMilliseconds);
+        _processed = 0UL;
+        _stopwatch = stopwatch ?? System.Diagnostics.Stopwatch.StartNew();
+        _enqueueTimes = new long[_capacity];
+        _nextReadIndex = 0u;
+        _nextWriteIndex = 0u;
+        _count = 0u;
+        _dropCount = 0UL;
+        _readLock = new();
+        _data = new T[capacity];
+    }
+
+    #endregion //Constructors
+    
+    /// <summary>
+    /// Thread-unsafe try enqueue.  
+    /// Full behavior: the block trying to be enqueued will be dropped. 
+    /// </summary>
+    /// <returns>Whether the enqueue was successful or not.</returns>
+    /// <param name="obj">The <see cref="T"/> to enqueue.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryEnqueue(T obj)
+    {
+        if (IsFullNoLock())
+        {
+            Interlocked.Increment(ref _dropCount);
+            return false;
+        }
+            
+        _data[_nextWriteIndex]         = obj;
+        _enqueueTimes[_nextWriteIndex] = _stopwatch.ElapsedMilliseconds;
+            
+        _nextWriteIndex = (++_nextWriteIndex) % Capacity;
+        Interlocked.Increment(ref _count);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Thread-safe try dequeue.
+    /// </summary>
+    /// <returns>Whether the dequeue was successful or not.</returns>
+    /// <param name="obj">The dequeued <see cref="T"/>.</param>
+    public bool TryDequeue(out T obj)
+    {
+        bool lockTaken = false;
+        try
+        {
+            _readLock.Enter(ref lockTaken);
+
+            if (IsEmptyNoLock() || (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - _enqueueTimes[_nextReadIndex])))
+            {
+                obj = DEFAULT;
+                return false;
+            }
+            
+            obj = _data[_nextReadIndex];
+            
+            _nextReadIndex = (++_nextReadIndex) % Capacity;
+            Interlocked.Decrement(ref _count);
+            Interlocked.Increment(ref _processed);
+            return true;
+        }
+        finally
+        {
+            if (lockTaken) _readLock.Exit();
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool IsFullNoLock()
+    {
+        return Interlocked.Read(ref _count) == _capacity;
+    }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool IsEmptyNoLock()
+    {
+        return Interlocked.Read(ref _count) == 0UL;
     }
 }
