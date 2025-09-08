@@ -149,7 +149,8 @@ public class RingBuffer : IRingBuffer
 }
 
 /// <summary>
-/// A thread-safe implementation of the IRingBuffer (multiple producer and multiple consumer).  Full behavior: the <see cref="T"/>  trying to be enqueued will be dropped. 
+/// A thread-safe implementation of the IRingBuffer (multiple producer and multiple consumer).  Full behavior: the <see cref="T"/>  trying to be enqueued will be dropped.
+/// Full behavior: the <see cref="T"/> trying to be enqueued will be dropped. 
 /// </summary>
 public class RingBuffer<T> : IRingBuffer<T> where T : struct
 {

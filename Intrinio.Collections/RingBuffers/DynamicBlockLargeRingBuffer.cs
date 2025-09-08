@@ -126,7 +126,6 @@ public class DynamicBlockLargeRingBuffer : IDynamicBlockRingBuffer
     /// Not thread-safe (for a single threadIndex) try enqueue.  This is not safe for calling concurrently on the same threadIndex, and intended for use with a single producer per index.
     /// Full behavior: the block trying to be enqueued will be dropped. 
     /// </summary>
-    /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
     /// <param name="blockToWrite">The byte block to copy from.</param>
     /// <returns>Whether the block was successfully enqueued or not.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
