@@ -18,11 +18,7 @@ public class DelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
     private readonly System.Diagnostics.Stopwatch _stopwatch;
     private ulong _blockNextReadIndex;
     private ulong _blockNextWriteIndex;
-#if NET9_0_OR_GREATER
-    private readonly Lock _readLock;
-#else
-    private readonly object _readLock;
-#endif
+    private SpinLock _readLock;
     private ulong _count;
     private readonly uint _blockSize;
     private readonly ulong _blockCapacity;
@@ -114,8 +110,11 @@ public class DelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
     /// <param name="fullBlockBuffer">The buffer to copy the byte block to.</param>
     public bool TryDequeue(Span<byte> fullBlockBuffer)
     {
-        lock (_readLock)
+        bool lockTaken = false;
+        try
         {
+            _readLock.Enter(ref lockTaken);
+            
             if (IsEmptyNoLock() || (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - _enqueueTimes[_blockNextReadIndex])))
                 return false;
             
@@ -126,6 +125,10 @@ public class DelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
             Interlocked.Decrement(ref _count);
             Interlocked.Increment(ref _processed);
             return true;
+        }
+        finally
+        {
+            if (lockTaken) _readLock.Exit();
         }
     }
 
@@ -149,8 +152,11 @@ public class DelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
     /// <returns>Whether the dequeue successfully retrieved a block or not.</returns>
     public bool TryDequeue(Span<byte> fullBlockBuffer, out Span<byte> trimmedBuffer)
     {
-        lock (_readLock)
+        bool lockTaken = false;
+        try
         {
+            _readLock.Enter(ref lockTaken);
+            
             if (IsEmptyNoLock() || (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - _enqueueTimes[_blockNextReadIndex])))
             {
                 trimmedBuffer = fullBlockBuffer;
@@ -165,6 +171,10 @@ public class DelayDynamicBlockSingleProducerRingBuffer: IDynamicBlockRingBuffer
             Interlocked.Decrement(ref _count);
             Interlocked.Increment(ref _processed);
             return true;
+        }
+        finally
+        {
+            if (lockTaken) _readLock.Exit();
         }
     }
 }

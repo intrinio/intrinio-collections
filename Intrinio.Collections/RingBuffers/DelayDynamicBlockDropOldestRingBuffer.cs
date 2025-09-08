@@ -18,13 +18,8 @@ public class DelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffer
     private readonly System.Diagnostics.Stopwatch _stopwatch;
     private ulong _blockNextReadIndex;
     private ulong _blockNextWriteIndex;
-#if NET9_0_OR_GREATER
-    private readonly Lock   _readLock;
-    private readonly Lock   _writeLock;
-#else
-    private readonly object _readLock;
-    private readonly object _writeLock;
-#endif
+    private SpinLock _readLock;
+    private SpinLock _writeLock;
     private ulong _count;
     private readonly uint _blockSize;
     private readonly ulong _blockCapacity;
@@ -92,12 +87,18 @@ public class DelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffer
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryEnqueue(ReadOnlySpan<byte> blockToEnqueue)
     {
-        lock (_writeLock)
+        bool writeLockTaken = false;
+        try
         {
+            _writeLock.Enter(ref writeLockTaken);
+            
             if (IsFullNoLock())
             {
-                lock (_readLock)
+                bool readLockTaken = false;
+                try
                 {
+                    _readLock.Enter(ref readLockTaken);
+                    
                     if (IsFullNoLock())
                     {
                         _blockNextReadIndex = (++_blockNextReadIndex) % BlockCapacity;
@@ -105,18 +106,27 @@ public class DelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffer
                         Interlocked.Increment(ref _dropCount);
                     }
                 }
+                finally
+                {
+                    if (readLockTaken) _readLock.Exit();
+                }
             }
             
-            int length = Math.Min(blockToEnqueue.Length, Convert.ToInt32(_blockSize));
+            int                length       = Math.Min(blockToEnqueue.Length, Convert.ToInt32(_blockSize));
             ReadOnlySpan<byte> trimmedBlock = blockToEnqueue.Slice(0, length);
-            Span<byte> target = new Span<byte>(_data, Convert.ToInt32(_blockNextWriteIndex * BlockSize), Convert.ToInt32(BlockSize));
+            Span<byte>         target       = new Span<byte>(_data, Convert.ToInt32(_blockNextWriteIndex * BlockSize), Convert.ToInt32(BlockSize));
             trimmedBlock.CopyTo(target);
-            _blockLengths[_blockNextReadIndex] = length;
+            _blockLengths[_blockNextReadIndex]  = length;
             _enqueueTimes[_blockNextWriteIndex] = _stopwatch.ElapsedMilliseconds;
             
             _blockNextWriteIndex = (++_blockNextWriteIndex) % BlockCapacity;
             Interlocked.Increment(ref _count);
             return true;
+        }
+        finally
+        {
+            if (writeLockTaken) 
+                _writeLock.Exit();
         }
     }
 
@@ -126,8 +136,11 @@ public class DelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffer
     /// <param name="fullBlockBuffer">The buffer to copy the byte block to.</param>
     public bool TryDequeue(Span<byte> fullBlockBuffer)
     {
-        lock (_readLock)
+        bool lockTaken = false;
+        try
         {
+            _readLock.Enter(ref lockTaken);
+            
             if (IsEmptyNoLock() || (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - _enqueueTimes[_blockNextReadIndex])))
                 return false;
             
@@ -138,6 +151,10 @@ public class DelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffer
             Interlocked.Decrement(ref _count);
             Interlocked.Increment(ref _processed);
             return true;
+        }
+        finally
+        {
+            if (lockTaken) _readLock.Exit();
         }
     }
 
@@ -162,8 +179,11 @@ public class DelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffer
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryDequeue(Span<byte> fullBlockBuffer, out Span<byte> trimmedBuffer)
     {
-        lock (_readLock)
+        bool lockTaken = false;
+        try
         {
+            _readLock.Enter(ref lockTaken);
+            
             if (IsEmptyNoLock() || (_delayMilliseconds > (_stopwatch.ElapsedMilliseconds - _enqueueTimes[_blockNextReadIndex])))
             {
                 trimmedBuffer = fullBlockBuffer;
@@ -178,6 +198,10 @@ public class DelayDynamicBlockDropOldestRingBuffer: IDynamicBlockRingBuffer
             Interlocked.Decrement(ref _count);
             Interlocked.Increment(ref _processed);
             return true;
+        }
+        finally
+        {
+            if (lockTaken) _readLock.Exit();
         }
     }
 }
