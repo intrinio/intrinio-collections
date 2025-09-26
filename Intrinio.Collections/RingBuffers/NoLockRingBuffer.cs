@@ -100,7 +100,7 @@ public class NoLockRingBuffer : IRingBuffer
             
             if (Interlocked.CompareExchange(ref _blockNextWriteIndex, nextWrite, currentWrite) == currentWrite)
             {
-                uint slot = (uint)(currentWrite % _blockCapacity);
+                ulong slot = currentWrite % _blockCapacity;
                 Thread.MemoryBarrier();
                 Volatile.Write(ref _blocks[slot], rented);
                 return true;
@@ -131,7 +131,7 @@ public class NoLockRingBuffer : IRingBuffer
             
             if (Interlocked.CompareExchange(ref _blockNextReadIndex, nextRead, currentRead) == currentRead)
             {
-                uint slot = (uint)(currentRead % _blockCapacity);
+                ulong slot = currentRead % _blockCapacity;
                 byte[] block;
                 
                 do
@@ -239,7 +239,7 @@ public class NoLockRingBuffer<T> : IRingBuffer<T> where T : struct
             
             if (Interlocked.CompareExchange(ref _nextWriteIndex, nextWrite, currentWrite) == currentWrite)
             {
-                uint slot = (uint)(currentWrite % _capacity);
+                ulong slot = currentWrite % _capacity;
                 _data[slot] = obj;
                 Thread.MemoryBarrier();
                 Volatile.Write(ref _flags[slot], (byte)1);
@@ -274,7 +274,7 @@ public class NoLockRingBuffer<T> : IRingBuffer<T> where T : struct
             
             if (Interlocked.CompareExchange(ref _nextReadIndex, nextRead, currentRead) == currentRead)
             {
-                uint slot = (uint)(currentRead % _capacity);
+                ulong slot = currentRead % _capacity;
                 
                 while (Volatile.Read(ref _flags[slot]) == 0) Thread.Yield();
                 
