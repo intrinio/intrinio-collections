@@ -100,7 +100,7 @@ public class DynamicBlockRingBuffer: IDynamicBlockRingBuffer
             ReadOnlySpan<byte> trimmedBlock = blockToEnqueue.Slice(0, length);
             Span<byte>         target       = new Span<byte>(_data, Convert.ToInt32(_blockNextWriteIndex * BlockSize), Convert.ToInt32(BlockSize));
             trimmedBlock.CopyTo(target);
-            _blockLengths[_blockNextReadIndex] = length;
+            _blockLengths[_blockNextWriteIndex] = length;
             
             _blockNextWriteIndex = (++_blockNextWriteIndex) % BlockCapacity;
             Interlocked.Increment(ref _count);
