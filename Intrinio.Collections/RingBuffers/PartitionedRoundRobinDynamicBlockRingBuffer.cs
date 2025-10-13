@@ -165,7 +165,7 @@ public class PartitionedRoundRobinDynamicBlockRingBuffer : IPartitionedDynamicBl
     /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
     /// <returns></returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ulong GetCount(int threadIndex)
+    public ulong GetCount(uint threadIndex)
     {
         return _queues[threadIndex].Count;
     }
@@ -176,7 +176,7 @@ public class PartitionedRoundRobinDynamicBlockRingBuffer : IPartitionedDynamicBl
     /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
     /// <returns></returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ulong GetDropCount(int threadIndex)
+    public ulong GetDropCount(uint threadIndex)
     {
         return _queues[threadIndex].DropCount;
     }
