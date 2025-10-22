@@ -3,6 +3,7 @@ namespace Intrinio.Collections.RingBuffers;
 using System;
 using System.Threading;
 using System.Buffers;
+using System.Numerics;
 
 /// <summary>
 /// A thread-safe implementation of the IRingBuffer (multiple producer and multiple consumer).  Full behavior: the oldest block in the ring buffer will be dropped. 
@@ -64,7 +65,7 @@ public class NoLockDropOldestRingBuffer : IRingBuffer
         _blocks = new byte[(int)blockCapacity][];
 
         // Custom single pool with maxArraysPerBucket set to 1.5x capacity (1/2 over)
-        _pool = ArrayPool<byte>.Create((int)blockSize * 2, (int)(blockCapacity + (blockCapacity / 2)));
+        _pool = ArrayPool<byte>.Create((int)BitOperations.RoundUpToPowerOf2(blockSize), (int)(blockCapacity + (blockCapacity / 2)));
     }
 
     #endregion //Constructors

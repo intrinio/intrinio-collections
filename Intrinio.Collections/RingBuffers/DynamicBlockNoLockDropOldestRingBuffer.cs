@@ -4,6 +4,7 @@ using System;
 using System.Threading;
 using System.Buffers;
 using System.Runtime.CompilerServices;
+using System.Numerics;
 
 /// <summary>
 /// A thread-safe implementation of the <see cref="IDynamicBlockRingBuffer"/> (multiple producer and multiple consumer), with support for tracking the used size of each byte-block.  Full behavior: the oldest block in the ring buffer will be dropped. 
@@ -65,7 +66,7 @@ public class DynamicBlockNoLockDropOldestRingBuffer: IDynamicBlockRingBuffer
         _dropCount = 0UL;
         _blocks = new byte[blockCapacity][];
         _blockLengths = new int[blockCapacity];
-        _pool = ArrayPool<byte>.Create((int)blockSize * 2, (int)(blockCapacity + (blockCapacity / 2)));
+        _pool = ArrayPool<byte>.Create((int)BitOperations.RoundUpToPowerOf2(blockSize), (int)(blockCapacity + (blockCapacity / 2)));
     }
 
     #endregion //Constructors

@@ -67,12 +67,12 @@ public interface IPartitionedRingBuffer
     /// </summary>
     /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
     /// <returns></returns>
-    public ulong GetCount(int threadIndex);
+    public ulong GetCount(uint threadIndex);
 
     /// <summary>
     /// The quantity of dropped blocks due to being full at the specified index.
     /// </summary>
     /// <param name="threadIndex">The zero based index for the channel to try enqueuing to. Max value is concurrency - 1.</param>
     /// <returns></returns>
-    public ulong GetDropCount(int threadIndex);
+    public ulong GetDropCount(uint threadIndex);
 }
