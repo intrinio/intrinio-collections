@@ -11,9 +11,9 @@ public class PriorityRingBufferPool : IPriorityRingBufferPool
     private readonly List<IRingBuffer?> _ringBuffers;
     
 #if NET9_0_OR_GREATER
-    private readonly Lock               _addUpdateLock;
+    private readonly Lock               _addUpdateLock = new Lock();
 #else
-    private readonly object             _addUpdateLock;
+    private readonly object             _addUpdateLock = new object();
 #endif
 
     public PriorityRingBufferPool(uint blockSize, ulong blockCapacity)
@@ -25,6 +25,9 @@ public class PriorityRingBufferPool : IPriorityRingBufferPool
 
     public void AddUpdateRingBufferToPool(uint priority, IRingBuffer ringBuffer)
     {
+        if (ringBuffer.BlockSize != _blockSize)
+            throw new ArgumentException("RingBuffer BlockSize must match the pool BlockSize");
+        
         lock (_addUpdateLock)
         {
             while (_ringBuffers.Count <= priority) //We need to expand
@@ -36,7 +39,7 @@ public class PriorityRingBufferPool : IPriorityRingBufferPool
 
     public bool TryEnqueue(uint priority, ReadOnlySpan<byte> blockToWrite)
     {
-        if (_ringBuffers.Count >= priority || _ringBuffers[Convert.ToInt32(priority)] == null)
+        if (_ringBuffers.Count <= priority || _ringBuffers[Convert.ToInt32(priority)] == null)
             return false;
 
         return _ringBuffers[Convert.ToInt32(priority)].TryEnqueue(blockToWrite);
@@ -45,7 +48,7 @@ public class PriorityRingBufferPool : IPriorityRingBufferPool
     public bool TryDequeue(Span<byte> blockBuffer)
     {
         int i = 0;
-        while (i <= _ringBuffers.Count)
+        while (i < _ringBuffers.Count)
         {
             if (_ringBuffers[i] != null && _ringBuffers[i].TryDequeue(blockBuffer))
                 return true;
@@ -178,9 +181,9 @@ public class PriorityRingBufferPool<T> : IPriorityRingBufferPool<T> where T : st
     private readonly T                     _defaultT;
     
 #if NET9_0_OR_GREATER
-    private readonly Lock               _addUpdateLock;
+    private readonly Lock               _addUpdateLock = new Lock();
 #else
-    private readonly object             _addUpdateLock;
+    private readonly object             _addUpdateLock = new object();
 #endif
 
     public PriorityRingBufferPool(ulong capacity)
@@ -203,7 +206,7 @@ public class PriorityRingBufferPool<T> : IPriorityRingBufferPool<T> where T : st
 
     public bool TryEnqueue(uint priority, T data)
     {
-        if (_ringBuffers.Count >= priority || _ringBuffers[Convert.ToInt32(priority)] == null)
+        if (_ringBuffers.Count <= priority || _ringBuffers[Convert.ToInt32(priority)] == null)
             return false;
 
         return _ringBuffers[Convert.ToInt32(priority)].TryEnqueue(data);
@@ -212,7 +215,7 @@ public class PriorityRingBufferPool<T> : IPriorityRingBufferPool<T> where T : st
     public bool TryDequeue(out T data)
     {
         int i = 0;
-        while (i <= _ringBuffers.Count)
+        while (i < _ringBuffers.Count)
         {
             if (_ringBuffers[i] != null && _ringBuffers[i].TryDequeue(out data))
                 return true;

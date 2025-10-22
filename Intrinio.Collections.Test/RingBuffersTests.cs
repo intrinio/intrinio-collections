@@ -2232,7 +2232,50 @@ public class RingBuffersTests
         Assert.IsTrue(ringBuffer.TryDequeue(buffer), "Dequeue should be successful.");
         Assert.AreEqual(value, BinaryPrimitives.ReadUInt64BigEndian(buffer), "Dequeued value should be equal to the original value.");
     }
-    
+
+    [TestMethod]
+    public void PriorityRingBufferPool_EnqueueDequeueCount()
+    {
+        uint                   blockSize  = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
+        ulong                  value1     = 5UL;
+        ulong                  value2     = 6UL;
+        uint                   capacity   = 10u;
+        PriorityRingBufferPool ringBuffer = new PriorityRingBufferPool(blockSize, capacity);
+        ringBuffer.AddUpdateRingBufferToPool(0, new NoLockRingBuffer(blockSize, capacity));
+        ringBuffer.AddUpdateRingBufferToPool(1, new NoLockDropOldestRingBuffer(blockSize, capacity));
+
+        Span<byte> buffer = stackalloc byte[Convert.ToInt32(blockSize)];
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, value1);
+
+        for (int i = 0; i < capacity; i++)
+        {
+            Assert.IsTrue(ringBuffer.TryEnqueue(0, buffer), $"Enqueue {i + 1} should be successful.");
+        }
+
+        Assert.IsFalse(ringBuffer.TryEnqueue(0, buffer), $"Enqueue {capacity + 1} should be unsuccessful.");
+
+        BinaryPrimitives.WriteUInt64BigEndian(buffer, value2);
+
+        for (int i = 0; i < (2 * capacity); i++)
+            Assert.IsTrue(ringBuffer.TryEnqueue(1, buffer), $"Enqueue {i + capacity + 2} should be successful.");
+
+        for (int i = 0; i < capacity; i++)
+        {
+            BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //clear buffer state
+            Assert.IsTrue(ringBuffer.TryDequeue(buffer), $"Dequeue {i + 1} should be successful.");
+            Assert.AreEqual(value1, BinaryPrimitives.ReadUInt64BigEndian(buffer), $"Dequeued value #{i + 1} should be equal to the first value.");
+        }
+
+        for (int i = 0; i < capacity; i++)
+        {
+            BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //clear buffer state
+            Assert.IsTrue(ringBuffer.TryDequeue(buffer), $"Dequeue {i + capacity + 1} should be successful.");
+            Assert.AreEqual(value2, BinaryPrimitives.ReadUInt64BigEndian(buffer), $"Dequeued value #{i + capacity + 1} should be equal to the second value.");
+        }
+
+        Assert.IsFalse(ringBuffer.TryDequeue(buffer), $"Dequeue {2 * capacity + 1} should be unsuccessful.");
+    }
+
     [TestMethod]
     public void PriorityRingBufferPool_T_EnqueueDequeue()
     {
@@ -2245,6 +2288,43 @@ public class RingBuffersTests
         Assert.IsTrue(ringBuffer.TryEnqueue(2, value), "Enqueue should be successful.");
         Assert.IsTrue(ringBuffer.TryDequeue(out ulong result), "Dequeue should be successful.");
         Assert.AreEqual(value, result, "Dequeued value should be equal to the original value.");
+    }
+    
+    [TestMethod]
+    public void PriorityRingBufferPool_T_EnqueueDequeueCount()
+    {
+        ulong                         value1     = 5UL;
+        ulong                         value2     = 6UL;
+        uint                          capacity   = 10u;
+        ulong                         result     = 0UL;
+        PriorityRingBufferPool<ulong> ringBuffer = new PriorityRingBufferPool<ulong>(capacity);
+        ringBuffer.AddUpdateRingBufferToPool(0, new NoLockRingBuffer<ulong>(capacity));
+        ringBuffer.AddUpdateRingBufferToPool(1, new NoLockDropOldestRingBuffer<ulong>(capacity));
+
+
+        for (int i = 0; i < capacity; i++)
+        {
+            Assert.IsTrue(ringBuffer.TryEnqueue(0, value1),        $"Enqueue {i + 1} should be successful.");
+        }
+        
+        Assert.IsFalse(ringBuffer.TryEnqueue(0, value1),        $"Enqueue {capacity + 1} should be unsuccessful.");
+        
+        for (int i = 0; i < (2 * capacity); i++)
+            Assert.IsTrue(ringBuffer.TryEnqueue(1, value2),        $"Enqueue {i + capacity + 2} should be successful.");
+
+        for (int i = 0; i < capacity; i++)
+        {
+            Assert.IsTrue(ringBuffer.TryDequeue(out result), $"Dequeue {i + 1} should be successful.");
+            Assert.AreEqual(value1, result, $"Dequeued value #{i + 1} should be equal to the first value.");
+        }
+        
+        for (int i = 0; i < capacity; i++)
+        {
+            Assert.IsTrue(ringBuffer.TryDequeue(out result), $"Dequeue {i + capacity + 1} should be successful.");
+            Assert.AreEqual(value2, result, $"Dequeued value #{i + capacity + 1} should be equal to the second value.");
+        }
+        
+        Assert.IsFalse(ringBuffer.TryDequeue(out result), $"Dequeue {2 * capacity + 1} should be unsuccessful.");
     }
     
     [TestMethod]
