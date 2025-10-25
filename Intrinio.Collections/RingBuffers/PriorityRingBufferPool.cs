@@ -7,7 +7,6 @@ namespace Intrinio.Collections.RingBuffers;
 public class PriorityRingBufferPool : IPriorityRingBufferPool
 {
     private readonly uint               _blockSize;
-    private readonly ulong              _blockCapacity;
     private readonly List<IRingBuffer?> _ringBuffers;
     
 #if NET9_0_OR_GREATER
@@ -16,10 +15,9 @@ public class PriorityRingBufferPool : IPriorityRingBufferPool
     private readonly object             _addUpdateLock = new object();
 #endif
 
-    public PriorityRingBufferPool(uint blockSize, ulong blockCapacity)
+    public PriorityRingBufferPool(uint blockSize)
     {
         _blockSize     = blockSize;
-        _blockCapacity = blockCapacity;
         _ringBuffers   = new List<IRingBuffer?>();
     }
 
@@ -92,11 +90,6 @@ public class PriorityRingBufferPool : IPriorityRingBufferPool
     public uint BlockSize
     {
         get { return _blockSize; }
-    }
-
-    public ulong EachQueueBlockCapacity
-    {
-        get { return _blockCapacity; }
     }
 
     public ulong TotalBlockCapacity
@@ -172,11 +165,18 @@ public class PriorityRingBufferPool : IPriorityRingBufferPool
 
         return _ringBuffers[Convert.ToInt32(priority)].DropCount;
     }
+    
+    public ulong GetCapacity(uint priority)
+    {
+        if (_ringBuffers.Count <= priority || _ringBuffers[Convert.ToInt32(priority)] == null)
+            return 0UL;
+
+        return _ringBuffers[Convert.ToInt32(priority)].BlockCapacity;
+    }
 }
 
 public class PriorityRingBufferPool<T> : IPriorityRingBufferPool<T> where T : struct
 {
-    private readonly ulong                 _capacity;
     private readonly List<IRingBuffer<T>?> _ringBuffers;
     private readonly T                     _defaultT;
     
@@ -186,9 +186,8 @@ public class PriorityRingBufferPool<T> : IPriorityRingBufferPool<T> where T : st
     private readonly object             _addUpdateLock = new object();
 #endif
 
-    public PriorityRingBufferPool(ulong capacity)
+    public PriorityRingBufferPool()
     {
-        _capacity    = capacity;
         _ringBuffers = new List<IRingBuffer<T>?>();
         _defaultT    = default(T);
     }
@@ -254,11 +253,6 @@ public class PriorityRingBufferPool<T> : IPriorityRingBufferPool<T> where T : st
 
             return total;
         }
-    }
-
-    public ulong EachQueueCapacity
-    {
-        get { return _capacity; }
     }
 
     public ulong TotalBlockCapacity
@@ -333,5 +327,13 @@ public class PriorityRingBufferPool<T> : IPriorityRingBufferPool<T> where T : st
             return 0UL;
 
         return _ringBuffers[Convert.ToInt32(priority)].DropCount;
+    }
+    
+    public ulong GetCapacity(uint priority)
+    {
+        if (_ringBuffers.Count <= priority || _ringBuffers[Convert.ToInt32(priority)] == null)
+            return 0UL;
+
+        return _ringBuffers[Convert.ToInt32(priority)].Capacity;
     }
 }

@@ -7,7 +7,6 @@ namespace Intrinio.Collections.RingBuffers;
 public class DynamicBlockPriorityRingBufferPool : IDynamicBlockPriorityRingBufferPool
 {
     private readonly uint _blockSize;
-    private readonly ulong _blockCapacity;
     private readonly List<IDynamicBlockRingBuffer?> _ringBuffers;
     
 #if NET9_0_OR_GREATER
@@ -16,10 +15,9 @@ public class DynamicBlockPriorityRingBufferPool : IDynamicBlockPriorityRingBuffe
     private readonly object             _addUpdateLock = new object();
 #endif
 
-    public DynamicBlockPriorityRingBufferPool(uint blockSize, ulong blockCapacity)
+    public DynamicBlockPriorityRingBufferPool(uint blockSize)
     {
         _blockSize     = blockSize;
-        _blockCapacity = blockCapacity;
         _ringBuffers   = new List<IDynamicBlockRingBuffer?>();
     }
 
@@ -109,11 +107,6 @@ public class DynamicBlockPriorityRingBufferPool : IDynamicBlockPriorityRingBuffe
         get { return _blockSize; }
     }
 
-    public ulong EachQueueBlockCapacity
-    {
-        get { return _blockCapacity; }
-    }
-
     public ulong TotalBlockCapacity
     {
         get
@@ -186,5 +179,13 @@ public class DynamicBlockPriorityRingBufferPool : IDynamicBlockPriorityRingBuffe
             return 0UL;
 
         return _ringBuffers[Convert.ToInt32(priority)].DropCount;
+    }
+    
+    public ulong GetCapacity(uint priority)
+    {
+        if (_ringBuffers.Count <= priority || _ringBuffers[Convert.ToInt32(priority)] == null)
+            return 0UL;
+
+        return _ringBuffers[Convert.ToInt32(priority)].BlockCapacity;
     }
 }

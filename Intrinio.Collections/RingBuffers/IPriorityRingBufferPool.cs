@@ -45,11 +45,6 @@ public interface IPriorityRingBufferPool
     uint BlockSize { get; }
     
     /// <summary>
-    /// The fixed capacity of blocks in each ring buffer.
-    /// </summary>
-    ulong EachQueueBlockCapacity { get; }
-    
-    /// <summary>
     /// The fixed total capacity of blocks across all ring buffers.
     /// </summary>
     ulong TotalBlockCapacity { get; }
@@ -82,6 +77,13 @@ public interface IPriorityRingBufferPool
     /// <param name="priority">The zero based priority to check.</param>
     /// <returns></returns>
     public ulong GetDropCount(uint priority);
+    
+    /// <summary>
+    /// The capacity in the ring buffer at the specified priority.
+    /// </summary>
+    /// <param name="priority">The zero based priority to check.</param>
+    /// <returns></returns>
+    public ulong GetCapacity(uint priority);
 }
 
 /// <summary>
@@ -122,11 +124,6 @@ public interface IPriorityRingBufferPool<T> where T : struct
     ulong ProcessedCount { get ; }
     
     /// <summary>
-    /// The fixed capacity of blocks in each ring buffer.
-    /// </summary>
-    ulong EachQueueCapacity { get; }
-    
-    /// <summary>
     /// The fixed total capacity of blocks across all ring buffers.
     /// </summary>
     ulong TotalBlockCapacity { get; }
@@ -159,4 +156,11 @@ public interface IPriorityRingBufferPool<T> where T : struct
     /// <param name="priority">The zero based priority to check.</param>
     /// <returns></returns>
     public ulong GetDropCount(uint priority);
+    
+    /// <summary>
+    /// The capacity in the ring buffer at the specified priority.
+    /// </summary>
+    /// <param name="priority">The zero based priority to check.</param>
+    /// <returns></returns>
+    public ulong GetCapacity(uint priority);
 }
