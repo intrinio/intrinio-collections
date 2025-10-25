@@ -53,11 +53,6 @@ public interface IDynamicBlockPriorityRingBufferPool
     uint BlockSize { get; }
     
     /// <summary>
-    /// The fixed capacity of blocks in each ring buffer.
-    /// </summary>
-    ulong EachQueueBlockCapacity { get; }
-    
-    /// <summary>
     /// The fixed total capacity of blocks across all ring buffers.
     /// </summary>
     ulong TotalBlockCapacity { get; }
@@ -90,4 +85,11 @@ public interface IDynamicBlockPriorityRingBufferPool
     /// <param name="priority">The zero based priority to check.</param>
     /// <returns></returns>
     public ulong GetDropCount(uint priority);
+    
+    /// <summary>
+    /// The capacity in the ring buffer at the specified priority.
+    /// </summary>
+    /// <param name="priority">The zero based priority to check.</param>
+    /// <returns></returns>
+    public ulong GetCapacity(uint priority);
 }

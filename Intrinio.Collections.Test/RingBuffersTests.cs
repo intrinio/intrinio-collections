@@ -2216,12 +2216,12 @@ public class RingBuffersTests
     #region PriorityRingBufferPool
 
     [TestMethod]
-    public void PriorityRingBufferPoolEnqueueDequeue()
+    public void PriorityRingBufferPool_EnqueueDequeue()
     {
         ulong                  value      = 5UL;
         uint                   blockSize  = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
         uint                   capacity   = 10u;
-        PriorityRingBufferPool ringBuffer = new PriorityRingBufferPool(blockSize, capacity);
+        PriorityRingBufferPool ringBuffer = new PriorityRingBufferPool(blockSize);
         ringBuffer.AddUpdateRingBufferToPool(2, new RingBuffer(blockSize, capacity));
         
         Span<byte> buffer = stackalloc byte[Convert.ToInt32(blockSize)];
@@ -2236,37 +2236,51 @@ public class RingBuffersTests
     [TestMethod]
     public void PriorityRingBufferPool_EnqueueDequeueCount()
     {
-        uint                   blockSize  = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
-        ulong                  value1     = 5UL;
-        ulong                  value2     = 6UL;
-        uint                   capacity   = 10u;
-        PriorityRingBufferPool ringBuffer = new PriorityRingBufferPool(blockSize, capacity);
+        uint  blockSize     = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
+        ulong value1        = 5UL;
+        ulong value2        = 6UL;
+        ulong capacity      = 10u;
+        ulong totalCapacity = 2 * capacity;
+        PriorityRingBufferPool ringBuffer    = new PriorityRingBufferPool(blockSize);
         ringBuffer.AddUpdateRingBufferToPool(0, new NoLockRingBuffer(blockSize, capacity));
         ringBuffer.AddUpdateRingBufferToPool(1, new NoLockDropOldestRingBuffer(blockSize, capacity));
+        
+        Assert.AreEqual(totalCapacity, ringBuffer.TotalBlockCapacity, "Total Capacity should be equal to the total capacity of the ring buffer.");
+        Assert.AreEqual(capacity,      ringBuffer.GetCapacity(0),     "Capacity of first buffer should be equal to capacity.");
+        Assert.AreEqual(capacity,      ringBuffer.GetCapacity(1),     "Capacity of second buffer should be equal to capacity.");
+        Assert.AreEqual(0UL,           ringBuffer.GetCount(0u),       "Count of first buffer should be equal to the capacity.");
+        Assert.AreEqual(0UL,           ringBuffer.GetCount(1u),       "Count of second buffer should be empty.");
+        Assert.AreEqual(0UL,           ringBuffer.Count,              "Total count should be equal to half the total capacity.");
 
         Span<byte> buffer = stackalloc byte[Convert.ToInt32(blockSize)];
         BinaryPrimitives.WriteUInt64BigEndian(buffer, value1);
 
-        for (int i = 0; i < capacity; i++)
+        for (ulong i = 0UL; i < capacity; i++)
         {
-            Assert.IsTrue(ringBuffer.TryEnqueue(0, buffer), $"Enqueue {i + 1} should be successful.");
+            Assert.IsTrue(ringBuffer.TryEnqueue(0u, buffer), $"Enqueue {i + 1} should be successful.");
         }
+        Assert.AreEqual(totalCapacity,     ringBuffer.TotalBlockCapacity, "Total Capacity should be equal to the total capacity of the ring buffer.");
+        Assert.AreEqual(capacity,          ringBuffer.GetCapacity(0),     "Capacity of first buffer should be equal to capacity.");
+        Assert.AreEqual(capacity,          ringBuffer.GetCapacity(1),     "Capacity of second buffer should be equal to capacity.");
+        Assert.AreEqual(capacity,          ringBuffer.GetCount(0u),       "Count of first buffer should be equal to the capacity.");
+        Assert.AreEqual(0UL,               ringBuffer.GetCount(1u),       "Count of second buffer should be empty.");
+        Assert.AreEqual(totalCapacity / 2, ringBuffer.Count,              "Total count should be equal to half the total capacity.");
 
         Assert.IsFalse(ringBuffer.TryEnqueue(0, buffer), $"Enqueue {capacity + 1} should be unsuccessful.");
 
         BinaryPrimitives.WriteUInt64BigEndian(buffer, value2);
 
-        for (int i = 0; i < (2 * capacity); i++)
+        for (ulong i = 0; i < (2 * capacity); i++)
             Assert.IsTrue(ringBuffer.TryEnqueue(1, buffer), $"Enqueue {i + capacity + 2} should be successful.");
 
-        for (int i = 0; i < capacity; i++)
+        for (ulong i = 0; i < capacity; i++)
         {
             BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //clear buffer state
             Assert.IsTrue(ringBuffer.TryDequeue(buffer), $"Dequeue {i + 1} should be successful.");
             Assert.AreEqual(value1, BinaryPrimitives.ReadUInt64BigEndian(buffer), $"Dequeued value #{i + 1} should be equal to the first value.");
         }
 
-        for (int i = 0; i < capacity; i++)
+        for (ulong i = 0; i < capacity; i++)
         {
             BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //clear buffer state
             Assert.IsTrue(ringBuffer.TryDequeue(buffer), $"Dequeue {i + capacity + 1} should be successful.");
@@ -2277,12 +2291,12 @@ public class RingBuffersTests
     }
     
     [TestMethod]
-    public void DynamicBlockPriorityRingBufferPoolEnqueueDequeue()
+    public void DynamicBlockPriorityRingBufferPool_EnqueueDequeue()
     {
         ulong                              value      = 5UL;
         uint                               blockSize  = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
         uint                               capacity   = 10u;
-        DynamicBlockPriorityRingBufferPool ringBuffer = new DynamicBlockPriorityRingBufferPool(blockSize, capacity);
+        DynamicBlockPriorityRingBufferPool ringBuffer = new DynamicBlockPriorityRingBufferPool(blockSize);
         ringBuffer.AddUpdateRingBufferToPool(2, new DynamicBlockRingBuffer(blockSize, capacity));
         
         Span<byte> buffer = stackalloc byte[Convert.ToInt32(blockSize)];
@@ -2297,37 +2311,51 @@ public class RingBuffersTests
     [TestMethod]
     public void DynamicBlockPriorityRingBufferPool_EnqueueDequeueCount()
     {
-        uint                               blockSize  = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
-        ulong                              value1     = 5UL;
-        ulong                              value2     = 6UL;
-        uint                               capacity   = 10u;
-        DynamicBlockPriorityRingBufferPool ringBuffer = new DynamicBlockPriorityRingBufferPool(blockSize, capacity);
+        uint  blockSize     = sizeof(ulong) + 5; //intentionally make block bigger than we need so we can see it trim.
+        ulong value1        = 5UL;
+        ulong value2        = 6UL;
+        ulong capacity      = 10u;
+        ulong totalCapacity = 2 * capacity;
+        DynamicBlockPriorityRingBufferPool ringBuffer = new DynamicBlockPriorityRingBufferPool(blockSize);
         ringBuffer.AddUpdateRingBufferToPool(0, new DynamicBlockNoLockRingBuffer(blockSize, capacity));
         ringBuffer.AddUpdateRingBufferToPool(1, new DynamicBlockNoLockDropOldestRingBuffer(blockSize, capacity));
+        
+        Assert.AreEqual(totalCapacity, ringBuffer.TotalBlockCapacity,    "Total Capacity should be equal to the total capacity of the ring buffer.");
+        Assert.AreEqual(capacity,      ringBuffer.GetCapacity(0), "Capacity of first buffer should be equal to capacity.");
+        Assert.AreEqual(capacity,      ringBuffer.GetCapacity(1), "Capacity of second buffer should be equal to capacity.");
+        Assert.AreEqual(0UL,           ringBuffer.GetCount(0u),   "Count of first buffer should be equal to the capacity.");
+        Assert.AreEqual(0UL,           ringBuffer.GetCount(1u),   "Count of second buffer should be empty.");
+        Assert.AreEqual(0UL,           ringBuffer.Count,                 "Total count should be equal to half the total capacity.");
 
         Span<byte> buffer = stackalloc byte[Convert.ToInt32(blockSize)];
         BinaryPrimitives.WriteUInt64BigEndian(buffer, value1);
 
-        for (int i = 0; i < capacity; i++)
+        for (ulong i = 0UL; i < capacity; i++)
         {
-            Assert.IsTrue(ringBuffer.TryEnqueue(0, buffer), $"Enqueue {i + 1} should be successful.");
+            Assert.IsTrue(ringBuffer.TryEnqueue(0u, buffer), $"Enqueue {i + 1} should be successful.");
         }
+        Assert.AreEqual(totalCapacity,     ringBuffer.TotalBlockCapacity, "Total Capacity should be equal to the total capacity of the ring buffer.");
+        Assert.AreEqual(capacity,          ringBuffer.GetCapacity(0),     "Capacity of first buffer should be equal to capacity.");
+        Assert.AreEqual(capacity,          ringBuffer.GetCapacity(1),     "Capacity of second buffer should be equal to capacity.");
+        Assert.AreEqual(capacity,          ringBuffer.GetCount(0u),       "Count of first buffer should be equal to the capacity.");
+        Assert.AreEqual(0UL,               ringBuffer.GetCount(1u),       "Count of second buffer should be empty.");
+        Assert.AreEqual(totalCapacity / 2, ringBuffer.Count,              "Total count should be equal to half the total capacity.");
 
         Assert.IsFalse(ringBuffer.TryEnqueue(0, buffer), $"Enqueue {capacity + 1} should be unsuccessful.");
 
         BinaryPrimitives.WriteUInt64BigEndian(buffer, value2);
 
-        for (int i = 0; i < (2 * capacity); i++)
+        for (ulong i = 0; i < (2 * capacity); i++)
             Assert.IsTrue(ringBuffer.TryEnqueue(1, buffer), $"Enqueue {i + capacity + 2} should be successful.");
 
-        for (int i = 0; i < capacity; i++)
+        for (ulong i = 0; i < capacity; i++)
         {
             BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //clear buffer state
             Assert.IsTrue(ringBuffer.TryDequeue(buffer), $"Dequeue {i + 1} should be successful.");
             Assert.AreEqual(value1, BinaryPrimitives.ReadUInt64BigEndian(buffer), $"Dequeued value #{i + 1} should be equal to the first value.");
         }
 
-        for (int i = 0; i < capacity; i++)
+        for (ulong i = 0; i < capacity; i++)
         {
             BinaryPrimitives.WriteUInt64BigEndian(buffer, 0UL); //clear buffer state
             Assert.IsTrue(ringBuffer.TryDequeue(buffer), $"Dequeue {i + capacity + 1} should be successful.");
@@ -2343,7 +2371,7 @@ public class RingBuffersTests
         ulong                         value      = 5UL;
         uint                          blockSize  = sizeof(ulong);
         uint                          capacity   = 10u;
-        PriorityRingBufferPool<ulong> ringBuffer = new PriorityRingBufferPool<ulong>(capacity);
+        PriorityRingBufferPool<ulong> ringBuffer = new PriorityRingBufferPool<ulong>();
         ringBuffer.AddUpdateRingBufferToPool(2, new RingBuffer<ulong>(capacity));
         
         Assert.IsTrue(ringBuffer.TryEnqueue(2, value), "Enqueue should be successful.");
@@ -2358,7 +2386,7 @@ public class RingBuffersTests
         ulong                         value2     = 6UL;
         uint                          capacity   = 10u;
         ulong                         result     = 0UL;
-        PriorityRingBufferPool<ulong> ringBuffer = new PriorityRingBufferPool<ulong>(capacity);
+        PriorityRingBufferPool<ulong> ringBuffer = new PriorityRingBufferPool<ulong>();
         ringBuffer.AddUpdateRingBufferToPool(0, new NoLockRingBuffer<ulong>(capacity));
         ringBuffer.AddUpdateRingBufferToPool(1, new NoLockDropOldestRingBuffer<ulong>(capacity));
 
@@ -2396,7 +2424,7 @@ public class RingBuffersTests
         uint  blockSize   = 117u;
         ulong capacity    = blockSize * 8192u * 16 + 1;
         
-        PriorityRingBufferPool ringBuffer = new PriorityRingBufferPool(blockSize, capacity);
+        PriorityRingBufferPool ringBuffer = new PriorityRingBufferPool(blockSize);
         ringBuffer.AddUpdateRingBufferToPool(0, new RingBuffer(blockSize, capacity));
         ringBuffer.AddUpdateRingBufferToPool(2, new RingBuffer(blockSize, capacity));
         
@@ -2507,7 +2535,7 @@ public class RingBuffersTests
         uint  blockSize   = 117u;
         ulong capacity    = blockSize * 8192u * 16 + 1;
         
-        DynamicBlockPriorityRingBufferPool ringBuffer = new DynamicBlockPriorityRingBufferPool(blockSize, capacity);
+        DynamicBlockPriorityRingBufferPool ringBuffer = new DynamicBlockPriorityRingBufferPool(blockSize);
         ringBuffer.AddUpdateRingBufferToPool(0, new DynamicBlockRingBuffer(blockSize, capacity));
         ringBuffer.AddUpdateRingBufferToPool(2, new DynamicBlockRingBuffer(blockSize, capacity));
         
@@ -2618,7 +2646,7 @@ public class RingBuffersTests
         ulong value       = 5UL;
         ulong capacity    = 8192u * 16 + 1;
         
-        PriorityRingBufferPool<ulong> ringBuffer = new PriorityRingBufferPool<ulong>(capacity);
+        PriorityRingBufferPool<ulong> ringBuffer = new PriorityRingBufferPool<ulong>();
         ringBuffer.AddUpdateRingBufferToPool(0, new RingBuffer<ulong>(capacity));
         ringBuffer.AddUpdateRingBufferToPool(2, new RingBuffer<ulong>(capacity));
         
