@@ -100,19 +100,10 @@ public class DynamicBlockNoLockDropOldestRingBuffer: IDynamicBlockRingBuffer
                     if (Interlocked.CompareExchange(ref _blockNextReadIndex, nxtRead, currRead) == currRead)
                     {
                         ulong slot = (currRead % _blockCapacity);
-                        // Spin with Yield until written (1), then CAS to consuming (2) for drop
-                        while (true)
+                        // Spin with Yield until written (1)
+                        while (Volatile.Read(ref _slotStates[slot]) != 1)
                         {
-                            int state = Volatile.Read(ref _slotStates[slot]);
-                            if (state != 1)
-                            {
-                                Thread.Yield();
-                                continue;
-                            }
-                            if (Interlocked.CompareExchange(ref _slotStates[slot], 2, 1) == 1)
-                            {
-                                break;
-                            }
+                            Thread.Yield();
                         }
                         byte[] block = Volatile.Read(ref _blocks[slot]);
                         Thread.MemoryBarrier();
@@ -132,23 +123,17 @@ public class DynamicBlockNoLockDropOldestRingBuffer: IDynamicBlockRingBuffer
             if (Interlocked.CompareExchange(ref _blockNextWriteIndex, nextWrite, currentWrite) == currentWrite)
             {
                 ulong slot = currentWrite % _blockCapacity;
-                // Spin with Yield until free (0), then CAS to written (1)
-                while (true)
+                // Precautionary spin with Yield until free (should be immediate in most cases)
+                while (Volatile.Read(ref _slotStates[slot]) != 0)
                 {
-                    int state = Volatile.Read(ref _slotStates[slot]);
-                    if (state != 0)
-                    {
-                        Thread.Yield();
-                        continue;
-                    }
-                    if (Interlocked.CompareExchange(ref _slotStates[slot], 1, 0) == 0)
-                    {
-                        break;
-                    }
+                    Thread.Yield();
                 }
+                
                 _blockLengths[slot] = length;
                 Thread.MemoryBarrier();
                 Volatile.Write(ref _blocks[slot], rented);
+                Thread.MemoryBarrier();
+                Volatile.Write(ref _slotStates[slot], 1); // Mark as written last
                 return true;
             }
         }
@@ -178,19 +163,10 @@ public class DynamicBlockNoLockDropOldestRingBuffer: IDynamicBlockRingBuffer
             if (Interlocked.CompareExchange(ref _blockNextReadIndex, nextRead, currentRead) == currentRead)
             {
                 ulong slot = currentRead % _blockCapacity;
-                // Spin with Yield until written (1), then CAS to consuming (2)
-                while (true)
+                // Spin with Yield until written (state=1)
+                while (Volatile.Read(ref _slotStates[slot]) != 1)
                 {
-                    int state = Volatile.Read(ref _slotStates[slot]);
-                    if (state != 1)
-                    {
-                        Thread.Yield();
-                        continue;
-                    }
-                    if (Interlocked.CompareExchange(ref _slotStates[slot], 2, 1) == 1)
-                    {
-                        break;
-                    }
+                    Thread.Yield();
                 }
                 byte[] block = Volatile.Read(ref _blocks[slot]);
                 Thread.MemoryBarrier();
@@ -233,19 +209,10 @@ public class DynamicBlockNoLockDropOldestRingBuffer: IDynamicBlockRingBuffer
             if (Interlocked.CompareExchange(ref _blockNextReadIndex, nextRead, currentRead) == currentRead)
             {
                 ulong slot = currentRead % _blockCapacity;
-                // Spin with Yield until written (1), then CAS to consuming (2)
-                while (true)
+                // Spin with Yield until written (state=1)
+                while (Volatile.Read(ref _slotStates[slot]) != 1)
                 {
-                    int state = Volatile.Read(ref _slotStates[slot]);
-                    if (state != 1)
-                    {
-                        Thread.Yield();
-                        continue;
-                    }
-                    if (Interlocked.CompareExchange(ref _slotStates[slot], 2, 1) == 1)
-                    {
-                        break;
-                    }
+                    Thread.Yield();
                 }
                 byte[] block = Volatile.Read(ref _blocks[slot]);
                 Thread.MemoryBarrier();
