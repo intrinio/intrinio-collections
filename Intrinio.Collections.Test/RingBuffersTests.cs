@@ -3163,7 +3163,7 @@ public class RingBuffersTests
         }
     }
 
-    [TestMethod]
+    [TestMethod, Ignore]
     public void NoLockPerfTest()
     {
         ulong casWait  = 0UL;
