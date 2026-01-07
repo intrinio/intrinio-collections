@@ -12,7 +12,7 @@
         <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <Version>6.4.0</Version>
-        <TargetFrameworks>net9.0;net8.0</TargetFrameworks>
+        <TargetFrameworks>net10.0;net8.0;net9.0</TargetFrameworks>
     </PropertyGroup>
 
     <PropertyGroup>
