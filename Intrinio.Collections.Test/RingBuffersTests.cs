@@ -3227,8 +3227,11 @@ public class RingBuffersTests
         Assert.IsTrue(Interlocked.Read(ref spinWait) > Interlocked.Read(ref casWait));
     }
     
+    /// <summary>
+    /// This tests for the presence of memory reordering bugs. If it fails, it means that the outside of the code and binaries, the processor itself has reordered the code in the wrong order.  ARM/ARM64 is particularly prone to this.
+    /// </summary>
     [TestMethod]
-    public void NoLockPerfTest2()
+    public void ProcessorMemoryReorderingTest()
     {
         ulong            value            = 5UL;
         uint             blockSize        = sizeof(ulong);
