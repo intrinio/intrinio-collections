@@ -151,6 +151,7 @@ public class DynamicBlockNoLockRingBuffer: IDynamicBlockRingBuffer
                 while (Volatile.Read(ref _slotStates[slot]) != 1)
                     Thread.Yield();
                 
+                Thread.MemoryBarrier();
                 byte[] block = Volatile.Read(ref _blocks[slot]);
                 Thread.MemoryBarrier();
                 new Span<byte>(block, 0, Convert.ToInt32(_blockSize)).CopyTo(fullBlockBuffer);
@@ -198,10 +199,9 @@ public class DynamicBlockNoLockRingBuffer: IDynamicBlockRingBuffer
                 
                 // Spin with Yield until written (state=1)
                 while (Volatile.Read(ref _slotStates[slot]) != 1)
-                {
                     Thread.Yield();
-                }
                 
+                Thread.MemoryBarrier();
                 byte[] block = Volatile.Read(ref _blocks[slot]);
                 Thread.MemoryBarrier();
                 int length = _blockLengths[slot];

@@ -143,9 +143,9 @@ public class NoLockRingBuffer : IRingBuffer
                 ulong slot = currentRead % _blockCapacity;
                 // Spin with Yield until written (state=1)
                 while (Volatile.Read(ref _slotStates[slot]) != 1)
-                {
                     Thread.Yield();
-                }
+                
+                Thread.MemoryBarrier();
                 byte[] block = Volatile.Read(ref _blocks[slot]);
                 Thread.MemoryBarrier();
                 new Span<byte>(block, 0, (int)_blockSize).CopyTo(fullBlockBuffer);

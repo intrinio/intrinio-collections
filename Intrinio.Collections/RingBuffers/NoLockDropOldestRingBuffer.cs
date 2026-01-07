@@ -98,13 +98,14 @@ public class NoLockDropOldestRingBuffer : IRingBuffer
                         ulong slot = currRead % _blockCapacity;
                         // Spin with Yield until written (1)
                         while (Volatile.Read(ref _slotStates[slot]) != 1)
-                        {
                             Thread.Yield();
-                        }
+                            
+                        Thread.MemoryBarrier();
                         byte[] block = Volatile.Read(ref _blocks[slot]);
                         Thread.MemoryBarrier();
                         Volatile.Write(ref _blocks[slot], null);
                         _pool.Return(block, false);
+                            
                         Volatile.Write(ref _slotStates[slot], 0); // Back to free
                         Interlocked.Increment(ref _dropCount);
                     }
@@ -121,9 +122,8 @@ public class NoLockDropOldestRingBuffer : IRingBuffer
                 ulong slot = currentWrite % _blockCapacity;
                 // Precautionary spin with Yield until free (should be immediate in most cases)
                 while (Volatile.Read(ref _slotStates[slot]) != 0)
-                {
                     Thread.Yield();
-                }
+                    
                 Thread.MemoryBarrier();
                 Volatile.Write(ref _blocks[slot], rented);
                 Thread.MemoryBarrier();
@@ -159,15 +159,16 @@ public class NoLockDropOldestRingBuffer : IRingBuffer
                 ulong slot = currentRead % _blockCapacity;
                 // Spin with Yield until written (1)
                 while (Volatile.Read(ref _slotStates[slot]) != 1)
-                {
                     Thread.Yield();
-                }
+                
+                Thread.MemoryBarrier();
                 byte[] block = Volatile.Read(ref _blocks[slot]);
                 Thread.MemoryBarrier();
                 new Span<byte>(block, 0, (int)_blockSize).CopyTo(fullBlockBuffer);
                 
                 Volatile.Write(ref _blocks[slot], null);
                 _pool.Return(block, false);
+                    
                 Volatile.Write(ref _slotStates[slot], 0); // Back to free
                 Interlocked.Increment(ref _processed);
                 return true;
@@ -259,9 +260,8 @@ public class NoLockDropOldestRingBuffer<T> : IRingBuffer<T> where T : struct
                         ulong slot = currRead % _capacity;
                         // Spin with Yield until written (1)
                         while (Volatile.Read(ref _slotStates[slot]) != 1)
-                        {
                             Thread.Yield();
-                        }
+                        
                         Thread.MemoryBarrier();
                         Volatile.Write(ref _slotStates[slot], 0); // Back to free (no pool return for struct)
                         Interlocked.Increment(ref _dropCount);
@@ -279,9 +279,8 @@ public class NoLockDropOldestRingBuffer<T> : IRingBuffer<T> where T : struct
                 ulong slot = currentWrite % _capacity;
                 // Precautionary spin with Yield until free (should be immediate in most cases)
                 while (Volatile.Read(ref _slotStates[slot]) != 0)
-                {
                     Thread.Yield();
-                }
+                
                 _data[slot] = obj;
                 Thread.MemoryBarrier();
                 Volatile.Write(ref _slotStates[slot], 1); // Mark as written last
@@ -320,9 +319,7 @@ public class NoLockDropOldestRingBuffer<T> : IRingBuffer<T> where T : struct
                 
                 // Spin with Yield until written (1)
                 while (Volatile.Read(ref _slotStates[slot]) != 1)
-                {
                     Thread.Yield();
-                }
                 
                 obj = _data[slot];
                 Thread.MemoryBarrier();
@@ -332,4 +329,4 @@ public class NoLockDropOldestRingBuffer<T> : IRingBuffer<T> where T : struct
             }
         }
     }
-}
+}   

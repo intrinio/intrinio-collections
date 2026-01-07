@@ -11,7 +11,7 @@
         <PackageTags>collections high-performance real-time concurrency</PackageTags>
         <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
         <PackageReadmeFile>README.md</PackageReadmeFile>
-        <Version>6.3.0</Version>
+        <Version>6.4.0</Version>
         <TargetFrameworks>net9.0;net8.0</TargetFrameworks>
     </PropertyGroup>
 
