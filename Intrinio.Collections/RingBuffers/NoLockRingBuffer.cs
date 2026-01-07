@@ -12,7 +12,6 @@ public class NoLockRingBuffer : IRingBuffer
 {
     #region Data Members
     private readonly byte[][] _blocks;
-    private readonly int[] _slotStates; // 0 = free, 1 = written
     private ulong _blockNextReadIndex;
     private ulong _blockNextWriteIndex;
     private ulong _dropCount;
@@ -63,8 +62,7 @@ public class NoLockRingBuffer : IRingBuffer
         _blockNextReadIndex = 0u;
         _blockNextWriteIndex = 0u;
         _dropCount = 0UL;
-        _blocks = new byte[(int)blockCapacity][];
-        _slotStates = new int[(int)blockCapacity]; // Initialized to 0 (free) by default
+        _blocks = new byte[(int)blockCapacity][]; // All null by default (free)
 
         _pool = ArrayPool<byte>.Shared;
     }
@@ -103,15 +101,9 @@ public class NoLockRingBuffer : IRingBuffer
             if (Interlocked.CompareExchange(ref _blockNextWriteIndex, nextWrite, currentWrite) == currentWrite)
             {
                 ulong slot = currentWrite % _blockCapacity;
-                // Precautionary spin with Yield until free (should be immediate in most cases)
-                while (Volatile.Read(ref _slotStates[slot]) != 0)
-                {
-                    Thread.Yield();
-                }
-                Thread.MemoryBarrier();
-                Volatile.Write(ref _blocks[slot], rented);
-                Thread.MemoryBarrier();
-                Volatile.Write(ref _slotStates[slot], 1); // Mark as written last
+                SpinWait spinner = default;
+                while (Interlocked.CompareExchange(ref _blocks[(int)slot], rented, null) != null)
+                    spinner.SpinOnce();
                 return true;
             }
         }
@@ -141,20 +133,13 @@ public class NoLockRingBuffer : IRingBuffer
             if (Interlocked.CompareExchange(ref _blockNextReadIndex, nextRead, currentRead) == currentRead)
             {
                 ulong slot = currentRead % _blockCapacity;
-                // Spin with Yield until written (state=1)
-                while (Volatile.Read(ref _slotStates[slot]) != 1)
-                    Thread.Yield();
+                byte[] block;
+                SpinWait spinner = default;
+                while ((block = Interlocked.Exchange(ref _blocks[(int)slot], null)) == null)
+                    spinner.SpinOnce();
                 
-                Thread.MemoryBarrier();
-                byte[] block = Volatile.Read(ref _blocks[slot]);
-                Thread.MemoryBarrier();
                 new Span<byte>(block, 0, (int)_blockSize).CopyTo(fullBlockBuffer);
-                
-                Volatile.Write(ref _blocks[slot], null);
                 _pool.Return(block, false);
-                
-                // Set back to free (0)
-                Volatile.Write(ref _slotStates[slot], 0);
                 
                 Interlocked.Increment(ref _processed);
                 return true;
@@ -169,8 +154,7 @@ public class NoLockRingBuffer : IRingBuffer
 public class NoLockRingBuffer<T> : IRingBuffer<T> where T : struct
 {
     #region Data Members
-    private readonly T[] _data;
-    private readonly int[] _slotStates; // 0=free, 1=written
+    private readonly object[] _data;
     private ulong _nextReadIndex;
     private ulong _nextWriteIndex;
     private ulong _dropCount;
@@ -216,8 +200,7 @@ public class NoLockRingBuffer<T> : IRingBuffer<T> where T : struct
         _nextReadIndex = 0u;
         _nextWriteIndex = 0u;
         _dropCount = 0UL;
-        _data = new T[capacity];
-        _slotStates = new int[(int)capacity]; // initialized to 0 (free)
+        _data = new object[(int)capacity]; // All null by default (free)
     }
 
     #endregion //Constructors
@@ -230,6 +213,7 @@ public class NoLockRingBuffer<T> : IRingBuffer<T> where T : struct
     /// <param name="obj">The <see cref="T"/> to enqueue.</param>
     public bool TryEnqueue(T obj)
     {
+        object boxed = obj;
         while (true)
         {
             ulong currentWrite = Volatile.Read(ref _nextWriteIndex);
@@ -250,14 +234,9 @@ public class NoLockRingBuffer<T> : IRingBuffer<T> where T : struct
             if (Interlocked.CompareExchange(ref _nextWriteIndex, nextWrite, currentWrite) == currentWrite)
             {
                 ulong slot = currentWrite % _capacity;
-                // Precautionary spin with Yield until free (should be immediate in most cases)
-                while (Volatile.Read(ref _slotStates[slot]) != 0)
-                {
-                    Thread.Yield();
-                }
-                _data[slot] = obj;
-                Thread.MemoryBarrier();
-                Volatile.Write(ref _slotStates[slot], 1); // Mark as written last
+                SpinWait spinner = default;
+                while (Interlocked.CompareExchange(ref _data[(int)slot], boxed, null) != null)
+                    spinner.SpinOnce();
                 return true;
             }
         }
@@ -279,9 +258,7 @@ public class NoLockRingBuffer<T> : IRingBuffer<T> where T : struct
             {
                 ulong actualWrite = Volatile.Read(ref _nextWriteIndex);
                 if (currentRead >= actualWrite)
-                {
                     return false;
-                }
                 _consumerCachedWrite.Value = actualWrite;
             }
             
@@ -290,16 +267,12 @@ public class NoLockRingBuffer<T> : IRingBuffer<T> where T : struct
             if (Interlocked.CompareExchange(ref _nextReadIndex, nextRead, currentRead) == currentRead)
             {
                 ulong slot = currentRead % _capacity;
+                object boxed;
+                SpinWait spinner = default;
+                while ((boxed = Interlocked.Exchange(ref _data[(int)slot], null)) == null)
+                    spinner.SpinOnce();
                 
-                // Spin with Yield until written (state=1)
-                while (Volatile.Read(ref _slotStates[slot]) != 1)
-                {
-                    Thread.Yield();
-                }
-                
-                obj = _data[slot];
-                Thread.MemoryBarrier();
-                Volatile.Write(ref _slotStates[slot], 0); // Set back to free
+                obj = (T)boxed;
                 Interlocked.Increment(ref _processed);
                 return true;
             }

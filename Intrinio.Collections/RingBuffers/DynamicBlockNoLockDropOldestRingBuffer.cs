@@ -14,7 +14,6 @@ public class DynamicBlockNoLockDropOldestRingBuffer: IDynamicBlockRingBuffer
     #region Data Members
     private readonly byte[][] _blocks;
     private readonly int[] _blockLengths;
-    private readonly int[] _slotStates; // 0 = free, 1 = written, 2 = consuming
     private ulong _blockNextReadIndex;
     private ulong _blockNextWriteIndex;
     private ulong _dropCount;
@@ -65,9 +64,8 @@ public class DynamicBlockNoLockDropOldestRingBuffer: IDynamicBlockRingBuffer
         _blockNextReadIndex = 0u;
         _blockNextWriteIndex = 0u;
         _dropCount = 0UL;
-        _blocks = new byte[blockCapacity][];
-        _blockLengths = new int[blockCapacity];
-        _slotStates = new int[blockCapacity]; // Initialized to 0 (free) by default
+        _blocks = new byte[(int)blockCapacity][];
+        _blockLengths = new int[(int)blockCapacity];
         _pool = ArrayPool<byte>.Shared;
     }
 
@@ -99,18 +97,12 @@ public class DynamicBlockNoLockDropOldestRingBuffer: IDynamicBlockRingBuffer
                     ulong nxtRead = currRead + 1UL;
                     if (Interlocked.CompareExchange(ref _blockNextReadIndex, nxtRead, currRead) == currRead)
                     {
-                        ulong slot = (currRead % _blockCapacity);
-                        // Spin with Yield until written (1)
-                        while (Volatile.Read(ref _slotStates[slot]) != 1)
-                            Thread.Yield();
-                        
-                        Thread.MemoryBarrier();
-                        byte[] block = Volatile.Read(ref _blocks[slot]);
-                        Thread.MemoryBarrier();
-                        Volatile.Write(ref _blocks[slot], null);
+                        ulong slot = currRead % _blockCapacity;
+                        byte[] block;
+                        SpinWait spinner = default;
+                        while ((block = Interlocked.Exchange(ref _blocks[(int)slot], null)) == null)
+                            spinner.SpinOnce();
                         _pool.Return(block, false);
-                            
-                        Volatile.Write(ref _slotStates[slot], 0); // Back to free
                         Interlocked.Increment(ref _dropCount);
                     }
                     _producerCachedRead.Value = Volatile.Read(ref _blockNextReadIndex);
@@ -124,15 +116,10 @@ public class DynamicBlockNoLockDropOldestRingBuffer: IDynamicBlockRingBuffer
             if (Interlocked.CompareExchange(ref _blockNextWriteIndex, nextWrite, currentWrite) == currentWrite)
             {
                 ulong slot = currentWrite % _blockCapacity;
-                // Precautionary spin with Yield until free (should be immediate in most cases)
-                while (Volatile.Read(ref _slotStates[slot]) != 0)
-                    Thread.Yield();
-                
-                _blockLengths[slot] = length;
-                Thread.MemoryBarrier();
-                Volatile.Write(ref _blocks[slot], rented);
-                Thread.MemoryBarrier();
-                Volatile.Write(ref _slotStates[slot], 1); // Mark as written last
+                SpinWait spinner = default;
+                Volatile.Write(ref _blockLengths[(int)slot], length);
+                while (Interlocked.CompareExchange(ref _blocks[(int)slot], rented, null) != null)
+                    spinner.SpinOnce();
                 return true;
             }
         }
@@ -162,19 +149,15 @@ public class DynamicBlockNoLockDropOldestRingBuffer: IDynamicBlockRingBuffer
             if (Interlocked.CompareExchange(ref _blockNextReadIndex, nextRead, currentRead) == currentRead)
             {
                 ulong slot = currentRead % _blockCapacity;
-                // Spin with Yield until written (state=1)
-                while (Volatile.Read(ref _slotStates[slot]) != 1)
-                    Thread.Yield();
+                byte[] block;
+                SpinWait spinner = default;
+                while ((block = Interlocked.Exchange(ref _blocks[(int)slot], null)) == null)
+                    spinner.SpinOnce();
                 
-                Thread.MemoryBarrier();
-                byte[] block = Volatile.Read(ref _blocks[slot]);
-                Thread.MemoryBarrier();
                 new Span<byte>(block, 0, (int)_blockSize).CopyTo(fullBlockBuffer);
                 
-                Volatile.Write(ref _blocks[slot], null);
                 _pool.Return(block, false);
-                    
-                Volatile.Write(ref _slotStates[slot], 0); // Back to free
+                
                 Interlocked.Increment(ref _processed);
                 return true;
             }
@@ -209,21 +192,17 @@ public class DynamicBlockNoLockDropOldestRingBuffer: IDynamicBlockRingBuffer
             if (Interlocked.CompareExchange(ref _blockNextReadIndex, nextRead, currentRead) == currentRead)
             {
                 ulong slot = currentRead % _blockCapacity;
-                // Spin with Yield until written (state=1)
-                while (Volatile.Read(ref _slotStates[slot]) != 1)
-                    Thread.Yield();
-                    
-                Thread.MemoryBarrier();
-                byte[] block = Volatile.Read(ref _blocks[slot]);
-                Thread.MemoryBarrier();
-                int length = _blockLengths[slot];
+                byte[] block;
+                SpinWait spinner = default;
+                while ((block = Interlocked.Exchange(ref _blocks[(int)slot], null)) == null)
+                    spinner.SpinOnce();
+                
+                int length = Volatile.Read(ref _blockLengths[(int)slot]);
                 new Span<byte>(block, 0, (int)_blockSize).CopyTo(fullBlockBuffer);
                 trimmedBuffer = fullBlockBuffer.Slice(0, Convert.ToInt32(length));
                 
-                Volatile.Write(ref _blocks[slot], null);
                 _pool.Return(block, false);
-                    
-                Volatile.Write(ref _slotStates[slot], 0); // Back to free
+                
                 Interlocked.Increment(ref _processed);
                 return true;
             }
